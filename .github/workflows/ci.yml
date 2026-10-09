@@ -1,0 +1,95 @@
+name: Tests y compilación de Windows
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  tests:
+    name: Pruebas automáticas
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: requirements-dev.txt
+      - name: Instalar dependencias
+        run: pip install -r requirements-dev.txt
+      - name: Pruebas de la API, seguridad y empaquetado
+        run: python -m pytest -q
+      - name: Pruebas del motor de tarifas
+        run: python scripts/test_pricing_engine.py
+      - name: Sintaxis de todo el JavaScript
+        run: |
+          for f in $(find desktop_ui mobile_ui github_pages -name '*.js'); do node --check "$f"; done
+      - name: Pruebas de los scripts de Google (simulador de Sheets/Forms)
+        run: |
+          node tests/apps_script/backup.test.js
+          node tests/apps_script/form.test.js
+
+  windows:
+    name: Compilar ParkingManager.exe
+    needs: tests
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: requirements.txt
+      - name: Instalar dependencias
+        run: pip install -r requirements.txt
+      - name: Compilar con PyInstaller
+        run: pyinstaller --noconfirm ParkingManager.spec
+      - name: Prueba de humo del .exe (arranca el servidor y responde)
+        shell: pwsh
+        run: |
+          $env:PARKINGMANAGER_DATA_DIR = Join-Path $env:RUNNER_TEMP "pm-data"
+          $env:PARKINGMANAGER_PORT = "8765"
+          $proc = Start-Process -FilePath "dist\ParkingManager\ParkingManager.exe" -ArgumentList "--headless" -PassThru
+          $ok = $false
+          for ($i = 0; $i -lt 60; $i++) {
+            Start-Sleep -Seconds 1
+            try {
+              $r = Invoke-RestMethod -Uri "http://127.0.0.1:8765/health" -TimeoutSec 2
+              if ($r.app -eq "ParkingManager") { $ok = $true; break }
+            } catch { }
+          }
+          if (-not $ok) {
+            $log = Join-Path $env:PARKINGMANAGER_DATA_DIR "parkingmanager.log"
+            if (Test-Path $log) { Get-Content $log }
+            throw "ParkingManager.exe no respondió en /health"
+          }
+          $admin = Invoke-WebRequest -Uri "http://127.0.0.1:8765/admin" -UseBasicParsing
+          $mobile = Invoke-WebRequest -Uri "http://127.0.0.1:8765/mobile/register" -UseBasicParsing
+          if ($admin.StatusCode -ne 200 -or $mobile.StatusCode -ne 200) { throw "No se sirven las pantallas empaquetadas" }
+          Stop-Process -Id $proc.Id -Force
+      - name: Comprimir
+        shell: pwsh
+        run: Compress-Archive -Path dist\ParkingManager -DestinationPath ParkingManager-windows.zip
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ParkingManager-windows
+          path: ParkingManager-windows.zip
+
+  release:
+    name: Publicar versión
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: windows
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: ParkingManager-windows
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: ParkingManager-windows.zip
+          generate_release_notes: true

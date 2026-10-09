@@ -1,0 +1,392 @@
+<!DOCTYPE html>
+<html lang="es" id="html-root">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ParkingManager</title>
+<link rel="stylesheet" href="/admin/static/css/style.css">
+</head>
+<body>
+
+<!-- ===================== LOGIN SCREEN ===================== -->
+<div id="login-screen" class="login-screen">
+  <div class="login-box">
+    <div class="lang-toggle login-lang-toggle">
+      <button class="lang-btn" data-lang="es">ES</button>
+      <button class="lang-btn" data-lang="en">EN</button>
+    </div>
+    <div class="brand-mark">P</div>
+    <h2 id="login-business-name">ParkingManager</h2>
+    <p data-i18n="login.subtitle">Ingresa tu usuario y PIN para continuar</p>
+    <input id="username-input" class="username-input" type="text" autocomplete="username" data-i18n-placeholder="field.username" placeholder="Usuario">
+    <input id="pin-input" class="pin-input" type="password" inputmode="numeric" maxlength="12" placeholder="••••">
+    <div id="login-error" class="login-error"></div>
+    <button id="login-btn" class="btn primary" style="width:100%" data-i18n="login.unlock">Desbloquear</button>
+  </div>
+</div>
+
+<!-- ===================== APP SHELL ===================== -->
+<div id="app" style="display:none">
+  <div class="sidebar">
+    <div class="brand">
+      <div class="brand-mark">P</div>
+      <div>
+        <div class="brand-name" id="sidebar-business-name">ParkingManager</div>
+        <div class="brand-sub" id="sidebar-spaces-label">20 espacios</div>
+      </div>
+    </div>
+    <div class="nav">
+      <div class="nav-item active" data-view="dashboard"><span class="nav-icon">▦</span><span class="label" data-i18n="nav.dashboard">Panel</span></div>
+      <div class="nav-item" data-view="active"><span class="nav-icon">▤</span><span class="label" data-i18n="nav.active">Vehículos activos</span></div>
+      <div class="nav-item admin-only" data-view="history"><span class="nav-icon">≡</span><span class="label" data-i18n="nav.history">Historial</span></div>
+      <div class="nav-item admin-only" data-view="revenue"><span class="nav-icon">$</span><span class="label" data-i18n="nav.revenue">Ingresos</span></div>
+      <div class="nav-item admin-only" data-view="pricing"><span class="nav-icon">%</span><span class="label" data-i18n="nav.pricing">Tarifas</span></div>
+      <div class="nav-item admin-only" data-view="schedules"><span class="nav-icon">◷</span><span class="label" data-i18n="nav.schedules">Horarios</span></div>
+      <div class="nav-item" data-view="monthly"><span class="nav-icon">🅿</span><span class="label" data-i18n="nav.monthly">Mensualidades</span></div>
+      <div class="nav-item admin-only" data-view="users"><span class="nav-icon">☺</span><span class="label" data-i18n="nav.users">Usuarios</span></div>
+      <div class="nav-item" data-view="settings"><span class="nav-icon">⚙</span><span class="label" data-i18n="nav.settings">Configuración</span></div>
+      <div class="nav-item" data-view="qr"><span class="nav-icon">▣</span><span class="label" data-i18n="nav.qr">Código QR</span></div>
+    </div>
+    <div class="sidebar-footer">
+      <div class="lang-toggle">
+        <button class="lang-btn" data-lang="es">ES</button>
+        <button class="lang-btn" data-lang="en">EN</button>
+      </div>
+      <div class="current-user-line">
+        <span id="current-user-name">--</span><span class="role-badge" id="current-user-role-badge">--</span>
+      </div>
+      <div id="data-dir-hint" data-i18n="sidebar.local_db">Base de datos local</div>
+      <button class="lock-btn" id="lock-btn" data-i18n="sidebar.lock">Bloquear panel</button>
+    </div>
+  </div>
+
+  <div class="main">
+    <div class="topbar">
+      <div class="topbar-title" id="view-title">Panel</div>
+      <div class="topbar-right">
+        <span class="pill"><span class="led available"></span> <span id="available-pill">-- </span></span>
+        <span class="pill"><span class="led occupied"></span> <span id="occupied-pill">-- </span></span>
+        <span class="pill"><span class="led monthly"></span> <span id="monthly-pill">-- </span></span>
+        <div class="clock" id="clock">--:--:--</div>
+      </div>
+    </div>
+
+    <div class="content">
+
+      <!-- ---------- DASHBOARD ---------- -->
+      <div class="view active" id="view-dashboard">
+        <div class="stat-row">
+          <div class="stat-card"><div class="stat-label" data-i18n="dash.available">Disponibles</div><div class="stat-value green" id="stat-available">--</div></div>
+          <div class="stat-card"><div class="stat-label" data-i18n="dash.occupied">Ocupados</div><div class="stat-value orange" id="stat-occupied">--</div></div>
+          <div class="stat-card"><div class="stat-label" data-i18n="dash.monthly">Mensualidades</div><div class="stat-value violet" id="stat-monthly">--</div></div>
+          <div class="stat-card"><div class="stat-label" data-i18n="dash.pending">Esperando espacio</div><div class="stat-value blue" id="stat-pending">--</div></div>
+          <div class="stat-card admin-only"><div class="stat-label" data-i18n="dash.today_revenue">Ingresos de hoy</div><div class="stat-value" id="stat-today-revenue">--</div></div>
+        </div>
+
+        <div id="pending-panel" class="panel" style="display:none">
+          <div class="section-head">
+            <div>
+              <div class="section-title" data-i18n="dash.pending_panel_title">Esperando asignación de espacio</div>
+              <div class="section-sub" data-i18n="dash.pending_panel_sub">Registrado por QR, esperando que un encargado asigne un espacio</div>
+            </div>
+          </div>
+          <table>
+            <thead><tr><th data-i18n="table.customer">Cliente</th><th data-i18n="table.plate">Placa</th><th data-i18n="table.waiting">Espera</th><th></th></tr></thead>
+            <tbody id="pending-table-body"></tbody>
+          </table>
+        </div>
+
+        <div class="section-head">
+          <div>
+            <div class="section-title" data-i18n="dash.spaces_title">Espacios de parqueo</div>
+            <div class="section-sub" data-i18n="dash.spaces_sub">Haz clic en un espacio para ver los detalles completos</div>
+          </div>
+        </div>
+        <div class="space-grid" id="space-grid"></div>
+      </div>
+
+      <!-- ---------- ACTIVE PARKING (list view) ---------- -->
+      <div class="view" id="view-active">
+        <div class="section-head">
+          <div><div class="section-title" data-i18n="active.title">Vehículos activos</div><div class="section-sub" data-i18n="active.sub">Todos los vehículos actualmente en el lote, pendientes o estacionados</div></div>
+        </div>
+        <table>
+          <thead><tr>
+            <th data-i18n="table.ticket">Ticket</th><th data-i18n="table.customer">Cliente</th><th data-i18n="table.plate">Placa</th>
+            <th data-i18n="table.space">Espacio</th><th data-i18n="table.entry">Entrada</th><th data-i18n="table.elapsed">Transcurrido</th>
+            <th data-i18n="table.current_charge">Cargo actual</th><th></th>
+          </tr></thead>
+          <tbody id="active-table-body"></tbody>
+        </table>
+      </div>
+
+      <!-- ---------- HISTORY ---------- -->
+      <div class="view" id="view-history">
+        <div class="section-head">
+          <div><div class="section-title" data-i18n="history.title">Historial de parqueo</div><div class="section-sub" data-i18n="history.sub">Busca y exporta sesiones completadas y canceladas</div></div>
+          <div class="btn-row" style="margin-top:0">
+            <button class="btn small" id="export-csv-btn" data-i18n="btn.export_csv">Exportar CSV</button>
+            <button class="btn small" id="export-xlsx-btn" data-i18n="btn.export_xlsx">Exportar Excel</button>
+          </div>
+        </div>
+        <div class="panel">
+          <div class="field-row">
+            <div class="field"><label data-i18n="filter.plate">Placa</label><input id="filter-plate" placeholder="ABC123"></div>
+            <div class="field"><label data-i18n="filter.customer">Cliente</label><input id="filter-customer" data-i18n-placeholder="table.customer" placeholder="Cliente"></div>
+            <div class="field"><label data-i18n="filter.space">Espacio</label><input id="filter-space" placeholder="P07"></div>
+            <div class="field">
+              <label data-i18n="filter.status">Estado</label>
+              <select id="filter-status">
+                <option value="" data-i18n="filter.status_any">Cualquiera</option>
+                <option value="COMPLETED" data-i18n="status.completed">Completado</option>
+                <option value="OCCUPIED" data-i18n="status.occupied">Ocupado</option>
+                <option value="PENDING_ASSIGNMENT" data-i18n="status.pending_assignment">Pendiente</option>
+                <option value="CANCELLED" data-i18n="status.cancelled">Cancelado</option>
+              </select>
+            </div>
+            <div class="field">
+              <label data-i18n="filter.date_range">Rango de fechas</label>
+              <select id="filter-date-preset">
+                <option value="" data-i18n="date.all_time">Todo el tiempo</option>
+                <option value="today" data-i18n="date.today">Hoy</option>
+                <option value="yesterday" data-i18n="date.yesterday">Ayer</option>
+                <option value="this_week" data-i18n="date.this_week">Esta semana</option>
+                <option value="this_month" data-i18n="date.this_month">Este mes</option>
+                <option value="custom" data-i18n="date.custom">Rango personalizado</option>
+              </select>
+            </div>
+            <div class="field custom-range" style="display:none">
+              <label data-i18n="filter.date_from">Desde</label><input id="filter-date-from" type="date">
+            </div>
+            <div class="field custom-range" style="display:none">
+              <label data-i18n="filter.date_to">Hasta</label><input id="filter-date-to" type="date">
+            </div>
+          </div>
+          <button class="btn primary small" id="apply-filters-btn" data-i18n="btn.search">Buscar</button>
+        </div>
+        <table>
+          <thead><tr>
+            <th data-i18n="table.ticket">Ticket</th><th data-i18n="table.customer">Cliente</th><th data-i18n="table.plate">Placa</th>
+            <th data-i18n="table.space">Espacio</th><th data-i18n="table.entry">Entrada</th><th data-i18n="table.exit">Salida</th>
+            <th data-i18n="table.duration">Duración</th><th data-i18n="table.rate">Tarifa</th><th data-i18n="table.status">Estado</th><th data-i18n="table.amount">Monto</th>
+          </tr></thead>
+          <tbody id="history-table-body"></tbody>
+        </table>
+        <div class="pager" id="history-pager">
+          <button class="btn small" id="history-prev" data-i18n="btn.prev_page">Anterior</button>
+          <span id="history-page-info"></span>
+          <button class="btn small" id="history-next" data-i18n="btn.next_page">Siguiente</button>
+        </div>
+        <div class="empty-state" id="history-empty" style="display:none">
+          <div class="glyph">∅</div><span data-i18n="history.empty">Ninguna sesión coincide con estos filtros.</span>
+        </div>
+      </div>
+
+      <!-- ---------- REVENUE ---------- -->
+      <div class="view" id="view-revenue">
+        <div class="section-head"><div><div class="section-title" data-i18n="revenue.title">Ingresos</div><div class="section-sub" data-i18n="revenue.sub">Resumen de caja de hoy, esta semana y este mes</div></div></div>
+        <div class="stat-row" id="revenue-cards"></div>
+        <div class="panel">
+          <div class="section-title" style="font-size:13px;margin-bottom:4px" data-i18n="revenue.chart_title">Ingresos diarios -- últimos 14 días</div>
+          <div class="bar-chart" id="revenue-chart"></div>
+        </div>
+      </div>
+
+      <!-- ---------- PRICING ---------- -->
+      <div class="view" id="view-pricing">
+        <div class="section-head">
+          <div><div class="section-title" data-i18n="pricing.title">Reglas de tarifas</div><div class="section-sub" data-i18n="pricing.sub">Nada aquí está fijo en el código -- agrega, edita o retira reglas cuando quieras</div></div>
+          <button class="btn primary small" id="new-rule-btn" data-i18n="btn.new_rule">+ Nueva regla</button>
+        </div>
+        <div id="rules-list"></div>
+      </div>
+
+      <!-- ---------- SCHEDULES ---------- -->
+      <div class="view" id="view-schedules">
+        <div class="section-head">
+          <div><div class="section-title" data-i18n="schedules.title">Horarios</div><div class="section-sub" data-i18n="schedules.sub">Asigna reglas de tarifa a días y franjas horarias. Un número de prioridad más bajo se revisa primero.</div></div>
+          <button class="btn primary small" id="new-schedule-btn" data-i18n="btn.new_schedule">+ Nuevo horario</button>
+        </div>
+        <div id="schedules-list"></div>
+      </div>
+
+      <!-- ---------- MONTHLY FEES (MENSUALIDADES) ---------- -->
+      <div class="view" id="view-monthly">
+        <div class="section-head">
+          <div><div class="section-title" data-i18n="monthly.title">Mensualidades</div><div class="section-sub" data-i18n="monthly.sub">Espacios fijos reservados para el mismo cliente cada mes</div></div>
+          <button class="btn primary small admin-only" id="new-subscription-btn" data-i18n="btn.new_subscription">+ Nueva mensualidad</button>
+        </div>
+        <div id="subscriptions-list"></div>
+      </div>
+
+      <!-- ---------- USERS ---------- -->
+      <div class="view" id="view-users">
+        <div class="section-head">
+          <div><div class="section-title" data-i18n="users.title">Usuarios</div><div class="section-sub" data-i18n="users.sub">Cuentas de administrador y vigilante para este panel</div></div>
+          <button class="btn primary small" id="new-user-btn" data-i18n="btn.new_user">+ Nuevo usuario</button>
+        </div>
+        <div id="users-list"></div>
+      </div>
+
+      <!-- ---------- SETTINGS ---------- -->
+      <div class="view" id="view-settings">
+        <div class="section-head"><div><div class="section-title" data-i18n="settings.title">Configuración</div></div></div>
+
+        <div class="panel">
+          <div class="section-title" style="font-size:13px;margin-bottom:12px" data-i18n="settings.my_account_section">Mi cuenta</div>
+          <div class="rule-detail" style="margin-bottom:12px" id="my-account-line">--</div>
+          <div class="field-row">
+            <div class="field"><label data-i18n="field.current_pin">PIN actual</label><input id="pin-current" type="password"></div>
+            <div class="field"><label data-i18n="field.new_pin">PIN nuevo</label><input id="pin-new" type="password"></div>
+          </div>
+          <button class="btn small" id="change-pin-btn" data-i18n="btn.change_pin">Cambiar PIN</button>
+        </div>
+
+        <div class="admin-only">
+          <div class="panel">
+            <div class="section-title" style="font-size:13px;margin-bottom:12px" data-i18n="settings.business_section">Negocio</div>
+            <div class="field-row">
+              <div class="field"><label data-i18n="field.business_name">Nombre del negocio</label><input id="setting-business-name"></div>
+              <div class="field"><label data-i18n="field.currency_code">Código de moneda</label><input id="setting-currency-code" maxlength="6"></div>
+              <div class="field"><label data-i18n="field.currency_symbol">Símbolo de moneda</label><input id="setting-currency-symbol" maxlength="4"></div>
+            </div>
+            <button class="btn primary small" id="save-settings-btn" data-i18n="btn.save">Guardar</button>
+          </div>
+          <div class="panel">
+            <div class="section-title" style="font-size:13px;margin-bottom:4px" data-i18n="settings.cloud_section">Respaldo en la nube</div>
+            <div class="section-sub" style="margin-bottom:14px" data-i18n="settings.cloud_sub">Opcional: respalda automáticamente las sesiones completadas en una hoja de Google gratuita. Consulta CLOUD_BACKUP.md para configurarlo.</div>
+            <div class="field-row">
+              <div class="checkbox-field" style="flex:none"><input type="checkbox" id="cloud-enabled"> <span data-i18n="checkbox.cloud_enabled">Habilitado</span></div>
+            </div>
+            <div class="field-row">
+              <div class="field"><label data-i18n="field.cloud_url">URL de la app web</label><input id="cloud-url" placeholder="https://script.google.com/macros/s/AKfycb.../exec"></div>
+              <div class="field"><label data-i18n="field.cloud_secret">Secreto compartido</label><input id="cloud-secret" type="password"></div>
+            </div>
+            <div class="btn-row">
+              <button class="btn primary small" id="save-cloud-btn" data-i18n="btn.save">Guardar</button>
+              <button class="btn small" id="sync-now-btn" data-i18n="btn.sync_now">Sincronizar ahora</button>
+            </div>
+            <div class="rule-detail" id="cloud-status-line" style="margin-top:12px">--</div>
+          </div>
+          <div class="panel">
+            <div class="section-title" style="font-size:13px;margin-bottom:4px" data-i18n="settings.remote_section">Acceso remoto</div>
+            <div class="section-sub" style="margin-bottom:14px" data-i18n="settings.remote_sub">Opcional: haz que el código QR funcione fuera de tu Wi-Fi. Consulta REMOTE_ACCESS.md para configurarlo.</div>
+            <div class="field-row">
+              <div class="checkbox-field" style="flex:none"><input type="checkbox" id="remote-enabled"> <span data-i18n="checkbox.remote_enabled">Habilitado</span></div>
+            </div>
+            <div class="field-row">
+              <div class="field"><label data-i18n="field.remote_url">URL pública</label><input id="remote-url" placeholder="https://parking.tudominio.com"></div>
+            </div>
+            <button class="btn primary small" id="save-remote-btn" data-i18n="btn.save">Guardar</button>
+          </div>
+          <div class="panel">
+            <div class="section-title" style="font-size:13px;margin-bottom:4px" data-i18n="settings.status_page_section">Página de estado (GitHub Pages)</div>
+            <div class="section-sub" style="margin-bottom:14px" data-i18n="settings.status_page_sub">Opcional: enlace de respaldo para que los clientes consulten su estado sin conexión a tu Wi-Fi. Requiere Cloud Backup activo. Consulta GITHUB_PAGES_STATUS.md.</div>
+            <div class="field-row">
+              <div class="checkbox-field" style="flex:none"><input type="checkbox" id="status-page-enabled"> <span data-i18n="checkbox.status_page_enabled">Habilitado</span></div>
+            </div>
+            <div class="field-row">
+              <div class="field"><label data-i18n="field.status_page_url">URL de GitHub Pages</label><input id="status-page-url" placeholder="https://tuusuario.github.io/turepositorio"></div>
+            </div>
+            <button class="btn primary small" id="save-status-page-btn" data-i18n="btn.save">Guardar</button>
+          </div>
+          <div class="panel">
+            <div class="section-title" style="font-size:13px;margin-bottom:8px" data-i18n="settings.data_location">Ubicación de datos</div>
+            <div class="rule-detail" id="data-dir-value" style="font-size:12.5px">--</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ---------- QR ---------- -->
+      <div class="view" id="view-qr">
+        <div class="section-head"><div><div class="section-title" data-i18n="qr.title">QR de ingreso de clientes</div><div class="section-sub" data-i18n="qr.sub">Imprime esto y colócalo en la entrada. Los teléfonos en la misma Wi-Fi pueden escanearlo para registrarse.</div></div></div>
+        <div class="panel qr-panel">
+          <div class="qr-image-box"><img id="qr-image" src="" alt="QR"></div>
+          <div>
+            <div class="section-sub" style="margin-bottom:6px" data-i18n="qr.link_label">Enlace de registro</div>
+            <div class="qr-url" id="qr-url">--</div>
+            <div id="qr-mode-badge" class="tag" style="margin-top:8px;display:inline-block">--</div>
+            <div class="btn-row"><button class="btn small" id="refresh-qr-btn" data-i18n="btn.refresh">Actualizar</button></div>
+            <p style="color:var(--text-dim);font-size:12.5px;max-width:360px;margin-top:18px;line-height:1.6" data-i18n="qr.note">
+              Esto funciona completamente en tu red local -- no requiere internet ni servicios en la nube.
+              Si el QR deja de funcionar después de cambiar de red Wi-Fi, haz clic en Actualizar
+              para regenerarlo con la nueva dirección de red.
+            </p>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<!-- ===================== SESSION DETAIL MODAL ===================== -->
+<div class="modal-backdrop" id="session-modal">
+  <div class="modal">
+    <div class="modal-head"><h3 data-i18n="modal.session_detail">Detalle de la sesión</h3><button class="modal-close" id="close-session-modal">&times;</button></div>
+    <div id="session-modal-body"></div>
+  </div>
+</div>
+
+<!-- ===================== ASSIGN SPACE MODAL ===================== -->
+<div class="modal-backdrop" id="assign-modal">
+  <div class="modal">
+    <div class="modal-head"><h3 data-i18n="modal.assign_space">Asignar un espacio de parqueo</h3><button class="modal-close" id="close-assign-modal">&times;</button></div>
+    <div id="assign-modal-body"></div>
+  </div>
+</div>
+
+<!-- ===================== PRICING RULE MODAL ===================== -->
+<div class="modal-backdrop" id="rule-modal">
+  <div class="modal">
+    <div class="modal-head"><h3 id="rule-modal-title">Nueva regla de tarifa</h3><button class="modal-close" id="close-rule-modal">&times;</button></div>
+    <div id="rule-modal-body"></div>
+  </div>
+</div>
+
+<!-- ===================== SCHEDULE MODAL ===================== -->
+<div class="modal-backdrop" id="schedule-modal">
+  <div class="modal">
+    <div class="modal-head"><h3 id="schedule-modal-title">Nuevo horario</h3><button class="modal-close" id="close-schedule-modal">&times;</button></div>
+    <div id="schedule-modal-body"></div>
+  </div>
+</div>
+
+<!-- ===================== SUBSCRIPTION MODAL ===================== -->
+<div class="modal-backdrop" id="subscription-modal">
+  <div class="modal">
+    <div class="modal-head"><h3 id="subscription-modal-title">Nueva mensualidad</h3><button class="modal-close" id="close-subscription-modal">&times;</button></div>
+    <div id="subscription-modal-body"></div>
+  </div>
+</div>
+
+<!-- ===================== LOG PAYMENT MODAL ===================== -->
+<div class="modal-backdrop" id="payment-modal">
+  <div class="modal">
+    <div class="modal-head"><h3 data-i18n="monthly.log_payment">Registrar pago</h3><button class="modal-close" id="close-payment-modal">&times;</button></div>
+    <div id="payment-modal-body"></div>
+  </div>
+</div>
+
+<!-- ===================== USER MODAL ===================== -->
+<div class="modal-backdrop" id="user-modal">
+  <div class="modal">
+    <div class="modal-head"><h3 id="user-modal-title">Nuevo usuario</h3><button class="modal-close" id="close-user-modal">&times;</button></div>
+    <div id="user-modal-body"></div>
+  </div>
+</div>
+
+<!-- ===================== RESET PIN MODAL ===================== -->
+<div class="modal-backdrop" id="reset-pin-modal">
+  <div class="modal">
+    <div class="modal-head"><h3 data-i18n="users.reset_pin">Restablecer PIN</h3><button class="modal-close" id="close-reset-pin-modal">&times;</button></div>
+    <div id="reset-pin-modal-body"></div>
+  </div>
+</div>
+
+<div class="toast-container" id="toast-container"></div>
+
+<script src="/admin/static/js/i18n.js"></script>
+<script src="/admin/static/js/app.js"></script>
+</body>
+</html>

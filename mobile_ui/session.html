@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="es" id="html-root">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>Parking Session</title>
+<link rel="stylesheet" href="/mobile/static/css/mobile.css">
+</head>
+<body>
+<div class="wrap">
+  <div class="brand-row">
+    <div class="brand-left">
+      <div class="brand-mark">P</div>
+      <div><div class="brand-title" id="business-name" data-i18n="brand.title">ParkingManager</div><div class="brand-sub" data-i18n="brand.sub_session">Tu sesión de parqueo</div></div>
+    </div>
+    <div class="lang-toggle">
+      <button class="lang-btn" data-lang="es">ES</button>
+      <button class="lang-btn" data-lang="en">EN</button>
+    </div>
+  </div>
+
+  <div class="card" id="content">
+    <div class="spinner"></div>
+    <p class="center-text" data-i18n="session.loading">Cargando tu sesión...</p>
+  </div>
+</div>
+<script src="/mobile/static/js/i18n.js"></script>
+<script src="/mobile/static/js/mobile.js"></script>
+<script>PM.initSessionPage();</script>
+</body>
+</html>

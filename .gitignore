@@ -1,0 +1,14 @@
+.venv/
+__pycache__/
+*.pyc
+build/
+dist/
+*.spec.bak
+.devdata/
+*.db
+*.db-shm
+*.db-wal
+.pytest_cache/
+node_modules/
+*.log
+.DS_Store

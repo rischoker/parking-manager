@@ -1,0 +1,26 @@
+# Runtime dependencies -- verified installing and working together during
+# development of this project. Install with:
+#   pip install -r requirements.txt
+#
+# On Windows, if you hit an error about "Microsoft Visual C++ 14.0 required",
+# install the free "Build Tools for Visual Studio" (only Pillow/cryptography
+# style packages occasionally need this; usually not required on modern
+# Windows with recent Python since prebuilt wheels are used).
+
+fastapi==0.141.1
+starlette==1.6.0
+uvicorn[standard]==0.52.4
+sqlalchemy==2.0.52
+pydantic==2.13.4
+qrcode[pil]==8.2
+pillow==12.1.1
+openpyxl==3.1.5
+python-multipart==0.0.32
+
+# Desktop window (wraps the local web UI in a native window using the OS's
+# built-in web renderer -- WebView2 on Windows 10/11, usually preinstalled)
+pywebview==6.2.1
+
+# Windows executable packaging (only needed on the machine that BUILDS the
+# .exe, not needed to just run the app with `python desktop_app.py`)
+pyinstaller==6.22.2

@@ -1,0 +1,722 @@
+/* ParkingManager admin console -- i18n (Spanish / English).
+   Spanish is the default (see LANG_STORAGE_KEY default below) since this
+   deployment is for a Spanish-speaking attendant; English remains one
+   click away via the toggle in the sidebar. */
+const LANG_STORAGE_KEY = "pm_lang";
+
+const I18N = {
+  es: {
+    "login.subtitle": "Ingresa tu usuario y PIN para continuar",
+    "login.unlock": "Desbloquear",
+
+    "nav.dashboard": "Panel",
+    "nav.active": "Vehículos activos",
+    "nav.history": "Historial",
+    "nav.revenue": "Ingresos",
+    "nav.pricing": "Tarifas",
+    "nav.schedules": "Horarios",
+    "nav.settings": "Configuración",
+    "nav.qr": "Código QR",
+
+    "sidebar.spaces_count": "{n} espacios",
+    "sidebar.local_db": "Base de datos local",
+    "sidebar.lock": "Bloquear panel",
+
+    "topbar.available": "{n} disponibles",
+    "topbar.occupied": "{n} ocupados",
+
+    "dash.available": "Disponibles",
+    "dash.occupied": "Ocupados",
+    "dash.pending": "Esperando espacio",
+    "dash.today_revenue": "Ingresos de hoy",
+    "dash.pending_panel_title": "Esperando asignación de espacio",
+    "dash.pending_panel_sub": "Registrado por QR, esperando que un encargado asigne un espacio",
+    "dash.spaces_title": "Espacios de parqueo",
+    "dash.spaces_sub": "Haz clic en un espacio para ver los detalles completos",
+    "dash.pending_badge": "Pendiente",
+
+    "table.customer": "Cliente",
+    "table.plate": "Placa",
+    "table.waiting": "Espera",
+    "table.ticket": "Ticket",
+    "table.space": "Espacio",
+    "table.entry": "Entrada",
+    "table.elapsed": "Transcurrido",
+    "table.current_charge": "Cargo actual",
+    "table.exit": "Salida",
+    "table.duration": "Duración",
+    "table.rate": "Tarifa",
+    "table.status": "Estado",
+    "table.amount": "Monto",
+
+    "btn.assign_space": "Asignar espacio",
+    "btn.assign": "Asignar",
+    "btn.view": "Ver",
+    "btn.edit": "Editar",
+    "btn.delete": "Eliminar",
+    "btn.save": "Guardar",
+    "btn.search": "Buscar",
+    "btn.refresh": "Actualizar",
+    "btn.retry": "Reintentar",
+    "btn.new_rule": "+ Nueva regla",
+    "btn.new_schedule": "+ Nuevo horario",
+    "btn.export_csv": "Exportar CSV",
+    "btn.export_xlsx": "Exportar Excel",
+    "btn.change_pin": "Cambiar PIN",
+    "btn.sync_now": "Sincronizar ahora",
+    "btn.register_exit": "Registrar salida",
+    "btn.cancel_session": "Cancelar sesión",
+    "btn.assign_confirm": "Asignar",
+
+    "space.available": "Disponible",
+    "space.occupied": "Ocupado",
+    "space.click_hint": "Haz clic en un registro pendiente para asignar",
+
+    "active.title": "Vehículos activos",
+    "active.sub": "Todos los vehículos actualmente en el lote, pendientes o estacionados",
+    "active.empty": "No hay vehículos activos.",
+
+    "history.title": "Historial de parqueo",
+    "history.sub": "Busca y exporta sesiones completadas y canceladas",
+    "history.empty": "Ninguna sesión coincide con estos filtros.",
+
+    "filter.plate": "Placa",
+    "filter.customer": "Cliente",
+    "filter.space": "Espacio",
+    "filter.status": "Estado",
+    "filter.status_any": "Cualquiera",
+    "filter.date_range": "Rango de fechas",
+
+    "status.completed": "Completado",
+    "status.occupied": "Ocupado",
+    "status.pending_assignment": "Pendiente",
+    "status.cancelled": "Cancelado",
+
+    "date.all_time": "Todo el tiempo",
+    "date.today": "Hoy",
+    "date.yesterday": "Ayer",
+    "date.this_week": "Esta semana",
+    "date.this_month": "Este mes",
+    "date.custom": "Rango personalizado",
+    "filter.date_from": "Desde",
+    "filter.date_to": "Hasta",
+    "btn.prev_page": "Anterior",
+    "btn.next_page": "Siguiente",
+    "history.showing": "Mostrando {first}-{last} de {total}",
+    "err.invalid_data": "Revisa los datos ingresados",
+    "err.too_many_logins": "Demasiados intentos fallidos. Intenta de nuevo en {seconds} segundos.",
+    "err.invalid_date": "Fecha inválida: '{value}'. Usa el formato AAAA-MM-DD.",
+    "err.rule_used_by_sessions": "Esta tarifa ya se usó en sesiones de parqueo y no se puede eliminar. Desactívala (desmarca \"Activa\") para conservar el historial.",
+    "err.last_rule": "Debe quedar al menos una tarifa activa.",
+    "err.url_scheme": "La URL debe comenzar con https:// o http://",
+
+    "revenue.title": "Ingresos",
+    "revenue.sub": "Resumen de caja de hoy, esta semana y este mes",
+    "revenue.chart_title": "Ingresos diarios -- últimos 14 días",
+    "revenue.range_today": "Hoy",
+    "revenue.range_this_week": "Esta semana",
+    "revenue.range_this_month": "Este mes",
+    "revenue.vehicles": "{n} vehículos",
+    "revenue.avg": "prom {amount}",
+    "revenue.hourly": "Por hora {amount}",
+    "revenue.flat": "Tarifa plana {amount}",
+
+    "pricing.title": "Reglas de tarifas",
+    "pricing.sub": "Nada aquí está fijo en el código -- agrega, edita o retira reglas cuando quieras",
+    "pricing.empty": "Aún no hay reglas de tarifas. Agrega una para comenzar.",
+    "pricing.detail_hourly": "Primera hora {first} · +{additional}/h · {method}",
+    "pricing.detail_flat": "Tarifa plana {amount}",
+    "tag.default": "predeterminada",
+    "tag.inactive": "inactiva",
+    "tag.priority": "prioridad {n}",
+
+    "method.per_started_hour": "por hora iniciada",
+    "method.exact_fraction": "fracción exacta",
+    "method.blocks": "bloques ({n} min)",
+
+    "rule_modal.title_new": "Nueva regla de tarifa",
+    "rule_modal.title_edit": "Editar regla de tarifa",
+    "field.name": "Nombre",
+    "field.type": "Tipo",
+    "type.hourly": "Por hora",
+    "type.flat": "Tarifa plana / día completo",
+    "field.first_hour_price": "Precio primera hora",
+    "field.additional_hour_price": "Precio hora adicional",
+    "field.rounding_method": "Método de redondeo",
+    "method_option.per_started_hour": "Cobrar cada hora iniciada",
+    "method_option.exact_fraction": "Cobrar fracción exacta de la hora",
+    "method_option.blocks": "Cobrar en bloques de tiempo fijos",
+    "field.block_minutes": "Tamaño del bloque (minutos)",
+    "field.flat_rate": "Tarifa plana / día completo",
+    "checkbox.default_rule": "Usar como regla predeterminada (aplica cuando ningún horario coincide)",
+    "checkbox.active": "Activa",
+
+    "schedules.title": "Horarios",
+    "schedules.sub": "Asigna reglas de tarifa a días y franjas horarias. Un número de prioridad más bajo se revisa primero.",
+    "schedules.empty": "Aún no hay horarios. Las sesiones usarán la regla de tarifa predeterminada.",
+    "schedule_modal.title_new": "Nuevo horario",
+    "schedule_modal.title_edit": "Editar horario",
+    "field.days": "Días",
+    "field.start_time": "Hora de inicio (24h)",
+    "field.end_time": "Hora de fin (24h)",
+    "field.pricing_rule": "Regla de tarifa",
+    "field.priority": "Prioridad (menor se revisa primero)",
+    "day.MON": "LUN", "day.TUE": "MAR", "day.WED": "MIÉ", "day.THU": "JUE",
+    "day.FRI": "VIE", "day.SAT": "SÁB", "day.SUN": "DOM",
+
+    "settings.title": "Configuración",
+    "settings.business_section": "Negocio",
+    "field.business_name": "Nombre del negocio",
+    "field.currency_code": "Código de moneda",
+    "field.currency_symbol": "Símbolo de moneda",
+    "settings.pin_section": "PIN de administrador",
+    "field.current_pin": "PIN actual",
+    "field.new_pin": "PIN nuevo",
+    "settings.data_location": "Ubicación de datos",
+    "settings.cloud_section": "Respaldo en la nube",
+    "settings.cloud_sub": "Opcional: respalda automáticamente las sesiones completadas en una hoja de Google gratuita. Consulta CLOUD_BACKUP.md para configurarlo.",
+    "checkbox.cloud_enabled": "Habilitado",
+    "field.cloud_url": "URL de la app web",
+    "field.cloud_secret": "Secreto compartido",
+    "cloud.never_synced": "Aún no se ha sincronizado",
+    "cloud.last_success": "Última sincronización: {time}",
+    "cloud.pending_count": "{n} pendientes",
+    "cloud.pending_zero": "Todo sincronizado",
+
+    "settings.remote_section": "Acceso remoto",
+    "settings.remote_sub": "Opcional: haz que el código QR funcione fuera de tu Wi-Fi. Consulta REMOTE_ACCESS.md para configurarlo.",
+    "checkbox.remote_enabled": "Habilitado",
+    "field.remote_url": "URL pública",
+    "toast.remote_saved": "Configuración de acceso remoto guardada.",
+    "qr.mode_local": "Usando red local",
+    "qr.mode_public": "Usando URL pública",
+
+    "settings.status_page_section": "Página de estado (GitHub Pages)",
+    "settings.status_page_sub": "Opcional: enlace de respaldo para que los clientes consulten su estado sin conexión a tu Wi-Fi. Requiere Cloud Backup activo. Consulta GITHUB_PAGES_STATUS.md.",
+    "checkbox.status_page_enabled": "Habilitado",
+    "field.status_page_url": "URL de GitHub Pages",
+    "toast.status_page_saved": "Configuración de página de estado guardada.",
+
+    "qr.title": "QR de ingreso de clientes",
+    "qr.sub": "Imprime esto y colócalo en la entrada. Los teléfonos en la misma Wi-Fi pueden escanearlo para registrarse.",
+    "qr.link_label": "Enlace de registro",
+    "qr.note": "Esto funciona completamente en tu red local -- no requiere internet ni servicios en la nube. Si el QR deja de funcionar después de cambiar de red Wi-Fi, haz clic en Actualizar para regenerarlo con la nueva dirección de red.",
+
+    "modal.session_detail": "Detalle de la sesión",
+    "modal.assign_space": "Asignar un espacio de parqueo",
+    "modal.choose_space": "Elige un espacio",
+    "modal.no_spaces": "No hay espacios disponibles en este momento. Libera un espacio registrando una salida primero.",
+    "detail.customer": "Cliente",
+    "detail.plate": "Placa",
+    "detail.phone": "Teléfono",
+    "detail.space": "Espacio",
+    "detail.entry": "Entrada",
+    "detail.exit": "Salida",
+    "detail.rate": "Tarifa",
+    "detail.status": "Estado",
+
+    "toast.rule_saved": "Regla de tarifa guardada.",
+    "toast.schedule_saved": "Horario guardado.",
+    "toast.settings_saved": "Configuración guardada.",
+    "toast.pin_changed": "PIN cambiado.",
+    "toast.cloud_saved": "Configuración de respaldo en la nube guardada.",
+    "toast.space_assigned": "Espacio asignado.",
+    "toast.session_cancelled": "Sesión cancelada.",
+    "toast.exit_registered": "Salida registrada. Cargo final: {amount}",
+    "toast.export_failed": "La exportación falló.",
+    "toast.sync_result": "{succeeded} de {attempted} sincronizados.",
+
+    "confirm.delete_rule": "¿Eliminar esta regla de tarifa?",
+    "confirm.delete_schedule": "¿Eliminar este horario?",
+
+    // Best-effort translations of common backend error messages -- see
+    // translateServerMessage() below for how these are matched.
+    "err.incorrect_pin": "PIN incorrecto.",
+    "err.not_authenticated": "No autenticado. Por favor inicia sesión.",
+    "err.session_expired": "Sesión expirada. Por favor inicia sesión de nuevo.",
+    "err.current_pin_incorrect": "El PIN actual es incorrecto.",
+    "err.pin_too_short": "El PIN nuevo debe tener al menos 4 caracteres.",
+    "err.session_not_found": "Sesión no encontrada.",
+    "err.space_not_found": "Espacio no encontrado.",
+    "err.pricing_rule_not_found": "Regla de tarifa no encontrada.",
+    "err.schedule_not_found": "Horario no encontrado.",
+    "err.plate_active": "La placa {plate} ya tiene una sesión de parqueo activa.",
+    "err.phone_active": "Este número de teléfono ya tiene una sesión de parqueo activa registrada.",
+    "err.space_unavailable": "El espacio {space} no está disponible.",
+    "err.rule_in_use": "La regla está en uso por el horario \"{schedule}\". Elimina o reasigna ese horario primero.",
+
+    "field.username": "Usuario",
+    "nav.monthly": "Mensualidades",
+    "nav.users": "Usuarios",
+    "dash.monthly": "Mensualidades",
+    "topbar.monthly": "{n} mensuales",
+
+    "monthly.title": "Mensualidades",
+    "monthly.sub": "Espacios fijos reservados para el mismo cliente cada mes",
+    "monthly.empty": "Aún no hay mensualidades. Agrega una para reservar un espacio fijo.",
+    "monthly.log_payment": "Registrar pago",
+    "monthly.mark_parked": "Marcar como estacionado",
+    "monthly.mark_left": "Marcar como fuera",
+    "monthly.currently_parked": "Estacionado",
+    "monthly.not_parked": "No estacionado",
+    "monthly.next_due": "Próximo pago",
+    "monthly.overdue": "Atrasado",
+    "monthly.up_to_date": "Al día",
+    "monthly.cancel_subscription": "Cancelar mensualidad",
+    "monthly.fee_label": "{amount} / mes",
+    "subscription_modal.title_new": "Nueva mensualidad",
+    "subscription_modal.title_edit": "Editar mensualidad",
+    "payment_modal.amount": "Monto pagado",
+    "payment_modal.notes": "Notas (opcional)",
+    "btn.log_payment": "Registrar pago",
+    "btn.new_subscription": "+ Nueva mensualidad",
+
+    "field.customer_name": "Nombre del cliente",
+    "field.additional_plates": "Placas adicionales (opcional)",
+    "field.phone": "Teléfono (opcional)",
+    "field.space": "Espacio",
+    "field.monthly_fee": "Tarifa mensual",
+    "field.notes": "Notas (opcional)",
+
+    "users.title": "Usuarios",
+    "users.sub": "Cuentas de administrador y vigilante para este panel",
+    "users.empty": "No hay usuarios.",
+    "users.reset_pin": "Restablecer PIN",
+    "btn.new_user": "+ Nuevo usuario",
+    "table.username": "Usuario",
+    "table.display_name": "Nombre",
+    "table.role": "Rol",
+    "role.ADMIN": "Administrador",
+    "role.ATTENDANT": "Vigilante",
+    "tag.inactive_user": "inactivo",
+    "checkbox.user_active": "Activo",
+    "user_modal.title_new": "Nuevo usuario",
+    "user_modal.title_edit": "Editar usuario",
+    "field.display_name": "Nombre para mostrar",
+    "field.role": "Rol",
+    "field.pin": "PIN",
+    "toast.user_created": "Usuario creado.",
+    "toast.user_updated": "Usuario actualizado.",
+    "toast.pin_reset": "PIN restablecido.",
+    "field.new_pin_reset": "Nuevo PIN",
+    "btn.reset_pin": "Restablecer PIN",
+
+    "toast.subscription_created": "Mensualidad creada.",
+    "toast.subscription_updated": "Mensualidad actualizada.",
+    "toast.subscription_cancelled": "Mensualidad cancelada.",
+    "toast.payment_logged": "Pago registrado.",
+    "toast.parked_updated": "Estado actualizado.",
+    "confirm.cancel_subscription": "¿Cancelar esta mensualidad? El espacio quedará disponible para clientes de paso.",
+
+    "settings.my_account_section": "Mi cuenta",
+    "my_account.signed_in_as": "Sesión iniciada como {name}",
+
+    "err.username_taken": "El usuario '{username}' ya está en uso.",
+    "err.last_admin": "No se puede degradar o desactivar la última cuenta de administrador.",
+    "err.space_reserved": "El espacio {space} está reservado para un cliente mensual.",
+    "err.requires_admin": "Esta acción requiere una cuenta de administrador.",
+    "err.incorrect_username_or_pin": "Usuario o PIN incorrecto.",
+  },
+  en: {
+    "login.subtitle": "Enter your username and PIN to continue",
+    "login.unlock": "Unlock",
+
+    "nav.dashboard": "Dashboard",
+    "nav.active": "Active Parking",
+    "nav.history": "History",
+    "nav.revenue": "Revenue",
+    "nav.pricing": "Pricing",
+    "nav.schedules": "Schedules",
+    "nav.settings": "Settings",
+    "nav.qr": "QR Code",
+
+    "sidebar.spaces_count": "{n} spaces",
+    "sidebar.local_db": "Local database",
+    "sidebar.lock": "Lock console",
+
+    "topbar.available": "{n} available",
+    "topbar.occupied": "{n} occupied",
+
+    "dash.available": "Available",
+    "dash.occupied": "Occupied",
+    "dash.pending": "Awaiting space",
+    "dash.today_revenue": "Today's revenue",
+    "dash.pending_panel_title": "Awaiting space assignment",
+    "dash.pending_panel_sub": "Registered by QR, waiting for an attendant to assign a space",
+    "dash.spaces_title": "Parking spaces",
+    "dash.spaces_sub": "Click a space for full session details",
+    "dash.pending_badge": "Pending",
+
+    "table.customer": "Customer",
+    "table.plate": "Plate",
+    "table.waiting": "Waiting",
+    "table.ticket": "Ticket",
+    "table.space": "Space",
+    "table.entry": "Entry",
+    "table.elapsed": "Elapsed",
+    "table.current_charge": "Current charge",
+    "table.exit": "Exit",
+    "table.duration": "Duration",
+    "table.rate": "Rate",
+    "table.status": "Status",
+    "table.amount": "Amount",
+
+    "btn.assign_space": "Assign space",
+    "btn.assign": "Assign",
+    "btn.view": "View",
+    "btn.edit": "Edit",
+    "btn.delete": "Delete",
+    "btn.save": "Save",
+    "btn.search": "Search",
+    "btn.refresh": "Refresh",
+    "btn.retry": "Retry",
+    "btn.new_rule": "+ New rule",
+    "btn.new_schedule": "+ New schedule",
+    "btn.export_csv": "Export CSV",
+    "btn.export_xlsx": "Export Excel",
+    "btn.change_pin": "Change PIN",
+    "btn.sync_now": "Sync now",
+    "btn.register_exit": "Register exit",
+    "btn.cancel_session": "Cancel session",
+    "btn.assign_confirm": "Assign",
+
+    "space.available": "Available",
+    "space.occupied": "Occupied",
+    "space.click_hint": "Click a pending registration to assign",
+
+    "active.title": "Active parking",
+    "active.sub": "Every vehicle currently on site, pending or parked",
+    "active.empty": "No active vehicles.",
+
+    "history.title": "Parking history",
+    "history.sub": "Search and export completed and cancelled sessions",
+    "history.empty": "No sessions match these filters.",
+
+    "filter.plate": "Plate",
+    "filter.customer": "Customer",
+    "filter.space": "Space",
+    "filter.status": "Status",
+    "filter.status_any": "Any",
+    "filter.date_range": "Date range",
+
+    "status.completed": "Completed",
+    "status.occupied": "Occupied",
+    "status.pending_assignment": "Pending",
+    "status.cancelled": "Cancelled",
+
+    "date.all_time": "All time",
+    "date.today": "Today",
+    "date.yesterday": "Yesterday",
+    "date.this_week": "This week",
+    "date.this_month": "This month",
+    "date.custom": "Custom range",
+    "filter.date_from": "From",
+    "filter.date_to": "To",
+    "btn.prev_page": "Previous",
+    "btn.next_page": "Next",
+    "history.showing": "Showing {first}-{last} of {total}",
+    "err.invalid_data": "Please check the data you entered",
+    "err.too_many_logins": "Too many failed attempts. Try again in {seconds} seconds.",
+    "err.invalid_date": "Invalid date: '{value}'. Use YYYY-MM-DD.",
+    "err.rule_used_by_sessions": "This rate has already been used by parking sessions and can't be deleted. Deactivate it (uncheck \"Active\") to keep the history.",
+    "err.last_rule": "At least one active rate must remain.",
+    "err.url_scheme": "URL must start with https:// or http://",
+
+    "revenue.title": "Revenue",
+    "revenue.sub": "Cash overview across today, this week and this month",
+    "revenue.chart_title": "Daily revenue -- last 14 days",
+    "revenue.range_today": "Today",
+    "revenue.range_this_week": "This week",
+    "revenue.range_this_month": "This month",
+    "revenue.vehicles": "{n} vehicles",
+    "revenue.avg": "avg {amount}",
+    "revenue.hourly": "Hourly {amount}",
+    "revenue.flat": "Flat {amount}",
+
+    "pricing.title": "Pricing rules",
+    "pricing.sub": "Nothing here is hard-coded -- add, edit or retire rules at any time",
+    "pricing.empty": "No pricing rules yet. Add one to get started.",
+    "pricing.detail_hourly": "First hour {first} · +{additional}/hr · {method}",
+    "pricing.detail_flat": "Flat rate {amount}",
+    "tag.default": "default",
+    "tag.inactive": "inactive",
+    "tag.priority": "priority {n}",
+
+    "method.per_started_hour": "per started hour",
+    "method.exact_fraction": "exact fraction",
+    "method.blocks": "blocks ({n} min)",
+
+    "rule_modal.title_new": "New pricing rule",
+    "rule_modal.title_edit": "Edit pricing rule",
+    "field.name": "Name",
+    "field.type": "Type",
+    "type.hourly": "Hourly",
+    "type.flat": "Flat / full-day rate",
+    "field.first_hour_price": "First hour price",
+    "field.additional_hour_price": "Additional hour price",
+    "field.rounding_method": "Rounding method",
+    "method_option.per_started_hour": "Charge every started hour",
+    "method_option.exact_fraction": "Charge exact fraction of the hour",
+    "method_option.blocks": "Charge in fixed time blocks",
+    "field.block_minutes": "Block size (minutes)",
+    "field.flat_rate": "Full-day / flat rate",
+    "checkbox.default_rule": "Use as default rule (applies when no schedule matches)",
+    "checkbox.active": "Active",
+
+    "schedules.title": "Schedules",
+    "schedules.sub": "Assign pricing rules to days & time windows. Lower priority number = checked first.",
+    "schedules.empty": "No schedules yet. Sessions will use the default pricing rule.",
+    "schedule_modal.title_new": "New schedule",
+    "schedule_modal.title_edit": "Edit schedule",
+    "field.days": "Days",
+    "field.start_time": "Start time (24h)",
+    "field.end_time": "End time (24h)",
+    "field.pricing_rule": "Pricing rule",
+    "field.priority": "Priority (lower checked first)",
+    "day.MON": "MON", "day.TUE": "TUE", "day.WED": "WED", "day.THU": "THU",
+    "day.FRI": "FRI", "day.SAT": "SAT", "day.SUN": "SUN",
+
+    "settings.title": "Settings",
+    "settings.business_section": "Business",
+    "field.business_name": "Business name",
+    "field.currency_code": "Currency code",
+    "field.currency_symbol": "Currency symbol",
+    "settings.pin_section": "Administrator PIN",
+    "field.current_pin": "Current PIN",
+    "field.new_pin": "New PIN",
+    "settings.data_location": "Data location",
+    "settings.cloud_section": "Cloud Backup",
+    "settings.cloud_sub": "Optional: automatically back up completed sessions to a free Google Sheet. See CLOUD_BACKUP.md for setup.",
+    "checkbox.cloud_enabled": "Enabled",
+    "field.cloud_url": "Web app URL",
+    "field.cloud_secret": "Shared secret",
+    "cloud.never_synced": "Never synced yet",
+    "cloud.last_success": "Last synced: {time}",
+    "cloud.pending_count": "{n} pending",
+    "cloud.pending_zero": "All synced",
+
+    "settings.remote_section": "Remote Access",
+    "settings.remote_sub": "Optional: make the QR code work outside your Wi-Fi. See REMOTE_ACCESS.md for setup.",
+    "checkbox.remote_enabled": "Enabled",
+    "field.remote_url": "Public URL",
+    "toast.remote_saved": "Remote access settings saved.",
+    "qr.mode_local": "Using local network",
+    "qr.mode_public": "Using public URL",
+
+    "settings.status_page_section": "Status Page (GitHub Pages)",
+    "settings.status_page_sub": "Optional: a backup link so customers can check their status without your Wi-Fi. Requires Cloud Backup to be enabled. See GITHUB_PAGES_STATUS.md.",
+    "checkbox.status_page_enabled": "Enabled",
+    "field.status_page_url": "GitHub Pages URL",
+    "toast.status_page_saved": "Status page settings saved.",
+
+    "qr.title": "Customer entry QR",
+    "qr.sub": "Print this and post it at the entrance. Phones on the same Wi-Fi can scan it to register.",
+    "qr.link_label": "Registration link",
+    "qr.note": "This works entirely on your local network -- no internet or cloud service required. If the QR stops working after moving to a different Wi-Fi network, click Refresh to regenerate it with the new network address.",
+
+    "modal.session_detail": "Session detail",
+    "modal.assign_space": "Assign a parking space",
+    "modal.choose_space": "Choose a space",
+    "modal.no_spaces": "No available spaces right now. Free up a space by registering an exit first.",
+    "detail.customer": "Customer",
+    "detail.plate": "Plate",
+    "detail.phone": "Phone",
+    "detail.space": "Space",
+    "detail.entry": "Entry",
+    "detail.exit": "Exit",
+    "detail.rate": "Rate",
+    "detail.status": "Status",
+
+    "toast.rule_saved": "Pricing rule saved.",
+    "toast.schedule_saved": "Schedule saved.",
+    "toast.settings_saved": "Settings saved.",
+    "toast.pin_changed": "PIN changed.",
+    "toast.cloud_saved": "Cloud backup settings saved.",
+    "toast.space_assigned": "Space assigned.",
+    "toast.session_cancelled": "Session cancelled.",
+    "toast.exit_registered": "Exit registered. Final charge: {amount}",
+    "toast.export_failed": "Export failed.",
+    "toast.sync_result": "{succeeded} of {attempted} synced.",
+
+    "confirm.delete_rule": "Delete this pricing rule?",
+    "confirm.delete_schedule": "Delete this schedule?",
+
+    "err.incorrect_pin": "Incorrect PIN.",
+    "err.not_authenticated": "Not authenticated. Please log in.",
+    "err.session_expired": "Session expired. Please log in again.",
+    "err.current_pin_incorrect": "Current PIN is incorrect.",
+    "err.pin_too_short": "New PIN must be at least 4 characters.",
+    "err.session_not_found": "Session not found.",
+    "err.space_not_found": "Space not found.",
+    "err.pricing_rule_not_found": "Pricing rule not found.",
+    "err.schedule_not_found": "Schedule not found.",
+    "err.plate_active": "Plate {plate} already has an active parking session.",
+    "err.phone_active": "This phone number already has an active parking session registered.",
+    "err.space_unavailable": "Space {space} is not available.",
+    "err.rule_in_use": "Rule is used by schedule \"{schedule}\". Remove or reassign that schedule first.",
+
+    "field.username": "Username",
+    "nav.monthly": "Monthly Fees",
+    "nav.users": "Users",
+    "dash.monthly": "Monthly",
+    "topbar.monthly": "{n} monthly",
+
+    "monthly.title": "Monthly Fees",
+    "monthly.sub": "Fixed spaces reserved by the same customer every month",
+    "monthly.empty": "No monthly subscriptions yet. Add one to reserve a fixed space.",
+    "monthly.log_payment": "Log payment",
+    "monthly.mark_parked": "Mark as parked",
+    "monthly.mark_left": "Mark as left",
+    "monthly.currently_parked": "Parked",
+    "monthly.not_parked": "Not parked",
+    "monthly.next_due": "Next due",
+    "monthly.overdue": "Overdue",
+    "monthly.up_to_date": "Up to date",
+    "monthly.cancel_subscription": "Cancel subscription",
+    "monthly.fee_label": "{amount} / month",
+    "subscription_modal.title_new": "New monthly subscription",
+    "subscription_modal.title_edit": "Edit monthly subscription",
+    "payment_modal.amount": "Amount paid",
+    "payment_modal.notes": "Notes (optional)",
+    "btn.log_payment": "Log payment",
+    "btn.new_subscription": "+ New subscription",
+
+    "field.customer_name": "Customer name",
+    "field.additional_plates": "Additional plates (optional)",
+    "field.phone": "Phone (optional)",
+    "field.space": "Space",
+    "field.monthly_fee": "Monthly fee",
+    "field.notes": "Notes (optional)",
+
+    "users.title": "Users",
+    "users.sub": "Admin and attendant accounts for this console",
+    "users.empty": "No users yet.",
+    "users.reset_pin": "Reset PIN",
+    "btn.new_user": "+ New user",
+    "table.username": "Username",
+    "table.display_name": "Name",
+    "table.role": "Role",
+    "role.ADMIN": "Admin",
+    "role.ATTENDANT": "Attendant",
+    "tag.inactive_user": "inactive",
+    "checkbox.user_active": "Active",
+    "user_modal.title_new": "New user",
+    "user_modal.title_edit": "Edit user",
+    "field.display_name": "Display name",
+    "field.role": "Role",
+    "field.pin": "PIN",
+    "toast.user_created": "User created.",
+    "toast.user_updated": "User updated.",
+    "toast.pin_reset": "PIN reset.",
+    "field.new_pin_reset": "New PIN",
+    "btn.reset_pin": "Reset PIN",
+
+    "toast.subscription_created": "Subscription created.",
+    "toast.subscription_updated": "Subscription updated.",
+    "toast.subscription_cancelled": "Subscription cancelled.",
+    "toast.payment_logged": "Payment logged.",
+    "toast.parked_updated": "Status updated.",
+    "confirm.cancel_subscription": "Cancel this subscription? The space will become available for walk-in customers.",
+
+    "settings.my_account_section": "My Account",
+    "my_account.signed_in_as": "Signed in as {name}",
+
+    "err.username_taken": "Username '{username}' is already taken.",
+    "err.last_admin": "Can't demote or deactivate the last remaining admin account.",
+    "err.space_reserved": "Space {space} is reserved for a monthly subscriber.",
+    "err.requires_admin": "This action requires an administrator account.",
+    "err.incorrect_username_or_pin": "Incorrect username or PIN.",
+  },
+};
+
+function getLang() {
+  return localStorage.getItem(LANG_STORAGE_KEY) || "es";
+}
+
+function setLang(lang) {
+  localStorage.setItem(LANG_STORAGE_KEY, lang);
+}
+
+function t(key, vars) {
+  const dict = I18N[getLang()] || I18N.es;
+  let str = dict[key] ?? I18N.en[key] ?? key;
+  if (vars) {
+    for (const k in vars) str = str.split(`{${k}}`).join(vars[k]);
+  }
+  return str;
+}
+
+function dayLabel(code) {
+  return t(`day.${code}`) || code;
+}
+
+/** Best-effort translation of a raw error message coming back from the
+ * API (which are written in English -- see app/crud.py). Exact matches
+ * first, then a few regex patterns for the messages that embed a plate,
+ * space number, or schedule name. Falls back to the original English
+ * text when nothing matches, so an error is always shown -- just not
+ * always translated -- rather than ever being swallowed. */
+function translateServerMessage(msg) {
+  if (!msg) return msg;
+  const exact = {
+    "Incorrect PIN.": "err.incorrect_pin",
+    "Not authenticated. Please log in.": "err.not_authenticated",
+    "Current PIN is incorrect.": "err.current_pin_incorrect",
+    "New PIN must be at least 4 characters.": "err.pin_too_short",
+    "Session not found.": "err.session_not_found",
+    "Parking space not found.": "err.space_not_found",
+    "Space not found.": "err.space_not_found",
+    "Pricing rule not found.": "err.pricing_rule_not_found",
+    "Schedule not found.": "err.schedule_not_found",
+    "This phone number already has an active parking session registered.": "err.phone_active",
+    "Incorrect username or PIN.": "err.incorrect_username_or_pin",
+    "This action requires an administrator account.": "err.requires_admin",
+    "Can't demote or deactivate the last remaining admin account.": "err.last_admin",
+  };
+  if (exact[msg]) return t(exact[msg]);
+
+  const exactMore = {
+    "Rule has already been used by parking sessions and can't be deleted. Deactivate it instead (uncheck 'Active') to keep the history intact.": "err.rule_used_by_sessions",
+    "At least one active pricing rule must remain.": "err.last_rule",
+    "URL must start with https:// or http://": "err.url_scheme",
+  };
+  if (exactMore[msg]) return t(exactMore[msg]);
+
+  let m = msg.match(/^Too many failed login attempts\. Try again in (\d+) seconds/);
+  if (m) return t("err.too_many_logins", { seconds: m[1] });
+
+  m = msg.match(/^Invalid date: '(.*?)'/);
+  if (m) return t("err.invalid_date", { value: m[1] });
+
+  m = msg.match(/^Plate (.+?) already has an active parking session\.?/);
+  if (m) return t("err.plate_active", { plate: m[1] });
+
+  // Check the more specific "reserved for a monthly subscriber" pattern
+  // BEFORE the generic "is not available" one below -- both can appear in
+  // the same backend message, and the generic pattern's non-greedy match
+  // would otherwise swallow the whole "reserved for..." clause into its
+  // captured space name.
+  m = msg.match(/^Space (.+?) is reserved for a monthly subscriber/);
+  if (m) return t("err.space_reserved", { space: m[1] });
+
+  m = msg.match(/^Space (.+?) is not available\.?$/);
+  if (m) return t("err.space_unavailable", { space: m[1] });
+
+  m = msg.match(/^Username '(.+?)' is already taken\.?/);
+  if (m) return t("err.username_taken", { username: m[1] });
+
+  m = msg.match(/^Rule is used by schedule '(.+?)'/);
+  if (m) return t("err.rule_in_use", { schedule: m[1] });
+
+  return msg; // no translation available -- show the original rather than hide it
+}
+
+function applyStaticTranslations(root) {
+  root = root || document;
+  root.querySelectorAll("[data-i18n]").forEach((el) => {
+    el.textContent = t(el.getAttribute("data-i18n"));
+  });
+  root.querySelectorAll("[data-i18n-placeholder]").forEach((el) => {
+    el.placeholder = t(el.getAttribute("data-i18n-placeholder"));
+  });
+}
