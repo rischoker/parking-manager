@@ -22,6 +22,15 @@ def attendant_client(server, admin, username="vigi1", pin="4321"):
     return c
 
 
+def audit_text(rows):
+    """The free-text columns of audit rows, for "this value was never written" checks.
+
+    Do NOT search `str(rows)`: the id/ts/uid columns are digits and hex, and a short PIN such
+    as "5555" or "0000" shows up in them by chance (a timestamp ending ".155558").
+    """
+    return " ".join(f"{r['username']} {r['role']} {r['action']} {r['subject']} {r['details']}" for r in rows)
+
+
 def audit(admin, **params):
     q = "&".join(f"{k}={v}" for k, v in params.items())
     status, body, _ = admin.call("GET", "/api/admin/audit?limit=500" + ("&" + q if q else ""))
@@ -197,7 +206,7 @@ def test_audit_covers_administration_and_never_stores_secrets(server, admin):
     admin.call("POST", "/api/admin/users", {"username": "temp9", "display_name": "Temporal", "pin": "9876", "role": "ATTENDANT"})
     uid = next(u["id"] for u in admin.call("GET", "/api/admin/users")[1] if u["username"] == "temp9")
     admin.call("PUT", f"/api/admin/users/{uid}/reset-pin", {"new_pin": "5555"})
-    everything = str(audit(admin))
+    everything = audit_text(audit(admin))
     assert "CLOUD_SYNC_UPDATED" in everything and "USER_CREATED" in everything and "USER_PIN_RESET" in everything
     for secret in ("S3CR3T-VALUE", "9876", "5555"):
         assert secret not in everything
@@ -208,7 +217,7 @@ def test_failed_and_successful_logins_are_recorded(server, admin):
     c.login("admin", "0000")
     actions = [r["action"] for r in audit(admin)]
     assert "LOGIN_FAILED" in actions and "LOGIN_OK" in actions
-    assert "0000" not in str(audit(admin, action="LOGIN_FAILED"))
+    assert "0000" not in audit_text(audit(admin, action="LOGIN_FAILED"))
 
 
 def test_audit_is_admin_only_and_read_only(server, admin):
