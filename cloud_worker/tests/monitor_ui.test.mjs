@@ -35,6 +35,8 @@ async function openPanel() {
       let cookie = "";
       w.fetch = async (u, o = {}) => {
         const res = await fetch(new URL(u, BASE), { ...o, headers: { ...(o.headers || {}), ...(cookie ? { Cookie: cookie } : {}), "CF-Connecting-IP": "198.51.100." + (w.__ip || 77) } });
+        // `w.__holdMs`: the next answer of the sessions list arrives late (to make requests overlap).
+        if (w.__holdMs && String(u).startsWith("/api/monitor/sessions?")) { const ms = w.__holdMs; w.__holdMs = 0; await sleep(ms); }
         const set = res.headers.get("set-cookie");
         if (set) cookie = set.split(";")[0].endsWith("=") ? "" : set.split(";")[0];
         return res;
@@ -120,6 +122,13 @@ async function ownerFlow(ownerKey) {
   ok(/q=ABC/.test(w.document.querySelector("#tab-sessions [data-export]").href) && /sessions\.csv/.test(w.document.querySelector("#tab-sessions [data-export]").href), "CSV link carries the filters");
   f.value = "no-such-plate"; click(w, "#tab-sessions [data-search]");
   await waitFor(() => !w.document.getElementById("sessions-empty").hidden, "empty state");
+
+  // Two searches overlap and the OLDER one answers last: it must not overwrite the newer result.
+  f.value = "ABC"; w.__holdMs = 900; click(w, "#tab-sessions [data-search]");       // slow; would list 1 row
+  f.value = "no-such-plate"; click(w, "#tab-sessions [data-search]");               // fast; nothing found
+  await sleep(1400);
+  ok(!w.document.getElementById("sessions-empty").hidden && w.document.querySelectorAll("#sessions-table tbody tr").length === 0,
+     "a late answer from an older search does not overwrite the table");
 
   // -- Mensualistas / Bitácora --
   tabBtn(w, "monthly").click();

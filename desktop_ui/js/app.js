@@ -497,14 +497,17 @@
     return params;
   }
 
+  let historySeq = 0;   // same rule as the audit view: only the last request draws
   async function loadHistory(resetPage = true) {
+    const seq = ++historySeq;
     if (resetPage === true) historyOffset = 0;
     const params = historyFilterParams();
     params.set("limit", HISTORY_PAGE_SIZE);
     params.set("offset", historyOffset);
 
     let data;
-    try { data = await api("/api/admin/history?" + params.toString()); } catch (e) { toastError(e); return; }
+    try { data = await api("/api/admin/history?" + params.toString()); } catch (e) { if (seq === historySeq) toastError(e); return; }
+    if (seq !== historySeq) return;
     currentCurrency = data.results[0] ? data.results[0].currency : currentCurrency;
     const tbody = document.getElementById("history-table-body");
     document.getElementById("history-empty").style.display = data.results.length ? "none" : "block";
@@ -994,7 +997,12 @@
     sel.value = current;
   }
 
+  // Only the LAST request may draw the table: with two requests in flight (the
+  // tab opens one, a filter change starts another) whichever answered last used
+  // to win, leaving the table out of step with the filters on screen.
+  let auditSeq = 0;
   async function loadAudit(resetPage = true) {
+    const seq = ++auditSeq;
     if (resetPage === true) auditOffset = 0;
     ensureAuditActionOptions();
     const kind = auditKind();
@@ -1004,7 +1012,8 @@
     params.set("offset", auditOffset);
     const url = (kind === "actions" ? "/api/admin/audit?" : "/api/admin/monthly-events?") + params.toString();
     let data;
-    try { data = await api(url); } catch (e) { toastError(e); return; }
+    try { data = await api(url); } catch (e) { if (seq === auditSeq) toastError(e); return; }
+    if (seq !== auditSeq) return;
 
     const head = document.getElementById("audit-table-head");
     const body = document.getElementById("audit-table-body");

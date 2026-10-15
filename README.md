@@ -719,7 +719,7 @@ Node.js; they are skipped when it is missing:
 cd cloud_worker && npm ci && cd ..      # installs wrangler + jsdom
 set NODE_PATH=cloud_worker\node_modules  # (PowerShell: $env:NODE_PATH="cloud_worker\node_modules")
 python -m pytest -q                      # now also drives the admin console, the QR page and a real app -> local Worker run
-npm test --prefix cloud_worker           # the cloud service on its own: ingest, keys, panel, throttling (46 checks)
+npm test --prefix cloud_worker           # the cloud service on its own: ingest, keys, panel, throttling (47 checks)
 ```
 
 `tests/` starts a real server on a free port with a throw-away data folder,

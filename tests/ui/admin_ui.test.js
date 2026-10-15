@@ -24,6 +24,8 @@ async function waitFor(fn, what, timeout = 8000) {
 }
 function ok(cond, msg) { if (!cond) throw new Error("FAILED: " + msg); console.log("  ok -", msg); }
 
+let delayNextAuditResponse = 0;
+
 async function openConsole(lang = "es") {
   const vc = new VirtualConsole();
   vc.on("jsdomError", e => pageErrors.push("jsdomError: " + (e.detail || e.message)));
@@ -33,7 +35,16 @@ async function openConsole(lang = "es") {
     beforeParse(w) {
       w.localStorage.setItem("pm_lang", lang);
       // jsdom has no fetch(); route the page's relative calls to Node's.
-      w.fetch = (u, o) => fetch(new URL(u, BASE), o);
+      // `delayNextAuditResponse` (ms) makes the next audit-log answer arrive late, to
+      // reproduce two requests overlapping with the older one finishing last.
+      w.fetch = async (u, o) => {
+        const url = new URL(u, BASE);
+        const res = await fetch(url, o);
+        if (delayNextAuditResponse && url.pathname === "/api/admin/audit") {
+          const ms = delayNextAuditResponse; delayNextAuditResponse = 0; await sleep(ms);
+        }
+        return res;
+      };
       w.addEventListener("error", e => pageErrors.push("window.onerror: " + e.message));
       w.addEventListener("unhandledrejection", e => pageErrors.push("unhandledrejection: " + e.reason));
     },
@@ -133,10 +144,18 @@ function clickNav(d, view) { d.querySelector(`.nav-item[data-view="${view}"]`).c
   await waitFor(() => /Entrada/.test(d.getElementById("events-modal-body").textContent), "movements modal");
   ok(/admin/.test(d.getElementById("events-modal-body").textContent), "movements modal shows who recorded it");
   d.getElementById("close-events-modal").click();
+  // Opening the tab starts a load of the activity log; switching to "monthly" right away
+  // starts a second one. The FIRST answer is held back so it arrives last: it must not
+  // overwrite the monthly table (this used to depend on which request happened to win).
+  delayNextAuditResponse = 900;
   clickNav(d, "audit");
   setVal(d, "audit-kind", "monthly");
   d.getElementById("audit-kind").dispatchEvent(new w.Event("change"));
   await waitFor(() => /MEN111/.test(d.getElementById("audit-table-body").textContent), "monthly movements in the audit view");
+  await sleep(1400);   // let the late, stale answer arrive
+  ok(/MEN111/.test(d.getElementById("audit-table-body").textContent) &&
+     !/Ingreso registrado por el vigilante/.test(d.getElementById("audit-table-body").textContent),
+     "a late answer from an older request does not overwrite the table");
   ok(d.getElementById("audit-action-field").style.display === "none", "action filter hidden in monthly mode");
 
   // -- English renders every new label ----------------------------------------------------

@@ -164,6 +164,7 @@
     const filters = $(".filters", root);
     const pager = $(".pager", root);
     let offset = 0;
+    let seq = 0;   // only the LAST request may draw: an older, slower answer must not overwrite a newer one
 
     function params() {
       const p = new URLSearchParams();
@@ -172,12 +173,14 @@
     }
 
     async function load(reset) {
+      const mine = ++seq;
       if (reset === true) offset = 0;
       const p = params();
       $("[data-export]", filters).href = `/api/monitor/export/${kind}.csv?` + p.toString();
       p.set("limit", PAGE_SIZE); p.set("offset", offset);
       let data;
-      try { data = await api(`/api/monitor/${endpoint}?` + p.toString()); } catch (e) { if (e.message !== "login") toast(e.message); return; }
+      try { data = await api(`/api/monitor/${endpoint}?` + p.toString()); } catch (e) { if (mine === seq && e.message !== "login") toast(e.message); return; }
+      if (mine !== seq) return;
       fillTable($("#" + tableId), headers, data.results.map(row));
       $("#" + emptyId).hidden = data.results.length > 0;
       const last = Math.min(offset + data.results.length, data.total);

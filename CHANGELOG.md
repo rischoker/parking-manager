@@ -54,10 +54,15 @@ Un servicio sobre Cloudflare Workers + D1 (guía paso a paso: `cloud_worker/DEPL
 
 * 17 pruebas de la API de ingresos/bitácora, 10 de la sincronización v2 (con un servidor "nube" falso),
   2 de las pantallas (administración y formulario del QR, en un navegador simulado), 1 de punta a punta
-  (el programa real enviando al servicio real en local) y **46 comprobaciones del servicio en la nube**
+  (el programa real enviando al servicio real en local) y **47 comprobaciones del servicio en la nube**
   (recepción, llaves, bloqueo por intentos, viewers, filtros, CSV, pantalla del panel, ataques de
-  inyección y entre sitios). En total **58 pruebas de Python + 46 del servicio**, todas en CI.
+  inyección y entre sitios). En total **58 pruebas de Python + 47 del servicio**, todas en CI.
 * Se corrigió durante las pruebas: un filtro del panel quedaba aplicado al entrar otra persona.
+* Se corrigió (lo destapó el CI de GitHub, que falló de forma intermitente): **si se lanzaban dos
+  búsquedas casi a la vez en la Bitácora, el Historial o el panel remoto, ganaba la respuesta que
+  llegara última**, y la tabla podía quedar con datos de otro filtro. Ahora solo la última búsqueda
+  dibuja la tabla. Las dos pantallas tienen una prueba que retrasa a propósito la respuesta antigua
+  (fallan con el código anterior, pasan con el nuevo).
 
 ### Qué NO se pudo comprobar en este entorno
 
