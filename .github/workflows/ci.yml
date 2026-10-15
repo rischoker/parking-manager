@@ -32,7 +32,20 @@ jobs:
         env:
           REQUIRE_UI_TESTS: "1"
           NODE_PATH: ${{ github.workspace }}/cloud_worker/node_modules
-        run: python -m pytest -q
+        run: |
+          set -o pipefail
+          python -m pytest -q -rfE --tb=short -p no:cacheprovider 2>&1 | tee "$RUNNER_TEMP/pytest.log"
+      - name: Resumen del fallo de pytest (se publica como anotación)
+        if: failure()
+        run: |
+          python - <<'PY'
+          import os, pathlib
+          log = pathlib.Path(os.environ["RUNNER_TEMP"]) / "pytest.log"
+          if log.exists():
+              text = log.read_text(errors="replace")[-6000:]
+              enc = text.replace("%", "%25").replace("\r", "%0D").replace("\n", "%0A")
+              print("::error title=Resumen de pytest::" + enc)
+          PY
       - name: Pruebas del servicio en la nube (Cloudflare Worker + D1 local)
         run: npm test --prefix cloud_worker
       - name: Comprobar que el servicio en la nube compila (sin publicar nada)
