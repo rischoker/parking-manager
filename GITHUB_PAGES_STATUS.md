@@ -1,5 +1,9 @@
 # GitHub Pages status page (optional, free, no domain needed)
 
+> **v1.2:** si montas el servicio de `cloud_worker/DEPLOY.md`, **esta página ya viene incluida** (la
+> misma, servida por tu dominio, sin Google ni GitHub): en ese caso no necesitas nada de este documento.
+> Sigue siendo válido si prefieres Google Sheets + GitHub Pages.
+
 A free companion to the QR check-status page: customers who registered
 on-site can bookmark a link that keeps working after they've left your
 Wi-Fi range, with **zero cost, no domain name, and no exposure of your

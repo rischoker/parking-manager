@@ -1,5 +1,10 @@
 # Cloud backup (optional, free)
 
+> **v1.2:** para consultar los ingresos desde fuera de la caseta (panel del propietario y la
+> administración, bitácora, tarifa del cliente desde cualquier lugar) usa el servicio de
+> `cloud_worker/DEPLOY.md`. Este respaldo en Google Sheets **sigue funcionando** y guarda solo las
+> sesiones; no hace falta cambiar nada si ya lo tienes. Puedes usar los dos a la vez.
+
 ParkingManager works completely offline and stores everything locally --
 this feature is purely an *extra*, off-site copy of completed sessions, for
 peace of mind (a stolen/broken laptop, an accidental delete, wanting to

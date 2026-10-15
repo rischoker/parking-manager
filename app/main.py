@@ -102,7 +102,7 @@ async def lifespan(_app: FastAPI):
 def create_app() -> FastAPI:
     # No interactive API docs: /docs and /openapi.json would publish the
     # complete list of admin endpoints to every phone on the Wi-Fi.
-    app = FastAPI(title="ParkingManager", version="1.1.0",
+    app = FastAPI(title="ParkingManager", version="1.2.0",
                   docs_url=None, redoc_url=None, openapi_url=None, lifespan=lifespan)
 
     app.add_middleware(LocalOnlyMiddleware)

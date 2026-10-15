@@ -37,6 +37,16 @@ pytest`, section "Automated tests"). A Google Form + Google Sheet for
 customer registration is described in **FORMULARIO_GOOGLE.md**, and putting
 the project on GitHub (including building the `.exe` there) in **GITHUB.md**.
 
+**v1.2 (access log + cloud panel):** the gate now keeps a complete record of
+who comes in -- the attendant can register a vehicle by hand (resident /
+visitor / service, tower and apartment, whom they visit, vehicle), monthly
+subscribers' real entries and exits are logged, and an append-only audit log
+records who did what. All of it can be mirrored to a free Cloudflare service
+(`cloud_worker/`, guide in **cloud_worker/DEPLOY.md**) that gives the owner and the
+complex administration a read-only panel with one access key per person, and
+gives customers a "check my fare" page that works away from your Wi-Fi.
+See section O and **CHANGELOG.md**.
+
 ---
 
 ## A. Architecture
@@ -97,6 +107,9 @@ section F for exactly how that separation is enforced.
   Windows folder so the end user never installs Python.
 
 ## C. Folder structure
+
+(v1.2 adds `cloud_worker/` -- the Cloudflare service, see section O -- and
+`tests/ui/` -- jsdom smoke tests of the screens.)
 
 ```
 parking-manager/
@@ -396,6 +409,35 @@ of that applies to a flat recurring fee. What it does instead:
 
 ---
 
+## O. Access log, audit trail and cloud panel (v1.2)
+
+**On the PC (always works, no internet needed)**
+
+- *Registrar ingreso* (dashboard button, any role): the attendant registers a
+  vehicle at the gate -- name, plate, type (visitor / resident / service),
+  tower-apartment, whom they visit, vehicle, optional space. The QR form
+  collects the same optional fields. Everything is stored on the session and
+  filterable / exportable in History.
+- *Mensualidades -> Movimientos:* marking a subscriber IN or OUT now leaves a
+  timestamped row with the attendant's username (a double click creates no
+  extra row; a cancelled subscription cannot "enter").
+- *Bitacora* (admin only): append-only `audit_log` of staff actions (check-ins,
+  space assignments, exits, cancellations, payments, rates, schedules, users,
+  settings, sign-ins and failed sign-ins). The action and its audit row are
+  saved in the same transaction; PINs and secrets are never written to it.
+
+**In the cloud (optional, free)** -- `cloud_worker/` is a Cloudflare Worker + D1
+database. The PC pushes records in the background (`app/cloud_sync.py`,
+protocol v2: `session`, `audit`, `monthly_event`, `ping`): a record is sent
+only when it is new or changed, retries are idempotent (stable `uid` /
+token), and a new destination URL re-sends the whole history. The Worker
+serves (1) the customer's fare page (reusing `github_pages/`), and (2) the
+read-only owner / administration panel at `/monitor/` (access keys stored
+only as hashes, hardened cookie, throttled sign-in, CSV export). The Google
+Sheet backup keeps working and simply ignores the new record kinds.
+
+Setup: **cloud_worker/DEPLOY.md** (about 30 minutes, once).
+
 ## Setup instructions
 
 ### On Windows (the real target)
@@ -666,8 +708,18 @@ has no Windows target and a locked-down network:
 
 ```
 pip install -r requirements-dev.txt
-python -m pytest -q            # API, security, migration and packaging checks (~15 s)
+python -m pytest -q            # API, security, migration, packaging, access log, cloud sync (~40 s)
 python scripts/test_pricing_engine.py   # pricing math, no server needed
+```
+
+The screens (jsdom) and the end-to-end test against the cloud service need
+Node.js; they are skipped when it is missing:
+
+```
+cd cloud_worker && npm ci && cd ..      # installs wrangler + jsdom
+set NODE_PATH=cloud_worker\node_modules  # (PowerShell: $env:NODE_PATH="cloud_worker\node_modules")
+python -m pytest -q                      # now also drives the admin console, the QR page and a real app -> local Worker run
+npm test --prefix cloud_worker           # the cloud service on its own: ingest, keys, panel, throttling (46 checks)
 ```
 
 `tests/` starts a real server on a free port with a throw-away data folder,

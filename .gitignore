@@ -12,3 +12,8 @@ dist/
 node_modules/
 *.log
 .DS_Store
+
+# cloud service (cloud_worker/)
+cloud_worker/public/
+.wrangler/
+.dev.vars

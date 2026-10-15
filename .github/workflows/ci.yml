@@ -18,15 +18,36 @@ jobs:
           python-version: "3.12"
           cache: pip
           cache-dependency-path: requirements-dev.txt
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: cloud_worker/package-lock.json
       - name: Instalar dependencias
-        run: pip install -r requirements-dev.txt
-      - name: Pruebas de la API, seguridad y empaquetado
+        run: |
+          pip install -r requirements-dev.txt
+          npm ci --prefix cloud_worker
+      - name: Pruebas de la API, seguridad, empaquetado, pantallas (jsdom) y de punta a punta con la nube
+        # REQUIRE_UI_TESTS=1: si falta Node o wrangler la prueba FALLA en vez de omitirse en silencio.
+        env:
+          REQUIRE_UI_TESTS: "1"
+          NODE_PATH: ${{ github.workspace }}/cloud_worker/node_modules
         run: python -m pytest -q
+      - name: Pruebas del servicio en la nube (Cloudflare Worker + D1 local)
+        run: npm test --prefix cloud_worker
+      - name: Comprobar que el servicio en la nube compila (sin publicar nada)
+        working-directory: cloud_worker
+        env:
+          CI: "1"
+          WRANGLER_SEND_METRICS: "false"
+        run: |
+          node scripts/prepare-public.mjs
+          npx wrangler deploy --dry-run --outdir "$RUNNER_TEMP/worker-dry"
       - name: Pruebas del motor de tarifas
         run: python scripts/test_pricing_engine.py
       - name: Sintaxis de todo el JavaScript
         run: |
-          for f in $(find desktop_ui mobile_ui github_pages -name '*.js'); do node --check "$f"; done
+          for f in $(find desktop_ui mobile_ui github_pages cloud_worker/src cloud_worker/monitor cloud_worker/scripts cloud_worker/tests tests/ui -name '*.js' -o -name '*.mjs'); do node --check "$f"; done
       - name: Pruebas de los scripts de Google (simulador de Sheets/Forms)
         run: |
           node tests/apps_script/backup.test.js

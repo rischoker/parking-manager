@@ -45,6 +45,23 @@ assert.strictEqual(get(env).ok, true);
 assert.strictEqual(env.log.lockWaits, env.log.lockReleases, "every lock released");
 assert(env.log.lockWaits >= 4, "writes are serialised by the lock");
 
+// protocol v2: `kind` is honoured. Sessions with an explicit kind work, pings
+// answer without touching the sheet, and other record kinds are acknowledged
+// and ignored (so ParkingManager marks them sent instead of retrying forever).
+const postKind = (env, kind, rec, secret = "s3cret") =>
+  JSON.parse(env.doPost({ postData: { contents: JSON.stringify({ secret, kind, record: rec }) } }).text);
+const rowsBefore = sheet.getLastRow();
+assert.deepStrictEqual(postKind(env, "ping", { protocol: 2 }), { ok: true, service: "google-sheet-backup" });
+assert.deepStrictEqual(postKind(env, "audit", { uid: "a1", action: "LOGIN_OK" }), { ok: true, ignored: "audit" });
+assert.deepStrictEqual(postKind(env, "monthly_event", { uid: "e1", direction: "IN" }), { ok: true, ignored: "monthly_event" });
+assert.strictEqual(sheet.getLastRow(), rowsBefore, "ignored kinds never write a row");
+assert.deepStrictEqual(postKind(env, "ping", {}, "wrong"), { ok: false, error: "Invalid or missing secret" }, "ping still checks the secret");
+assert.deepStrictEqual(postKind(env, "session", { ...base, session_token: "tok-v2" }), { ok: true });
+assert.strictEqual(sheet.getLastRow(), rowsBefore + 1, "explicit kind=session is stored");
+// extra v2 fields in a session record are harmless to the sheet layout
+assert.deepStrictEqual(postKind(env, "session", { ...base, session_token: "tok-v2", unit: "Torre 3 - 402", person_type: "RESIDENT" }), { ok: true });
+assert.strictEqual(sheet.getLastRow(), rowsBefore + 1, "still one row per session");
+
 // legacy layout: first tab already holds our header -> keep using it
 env = load(file);
 const legacy = env.ss.getSheets()[0];

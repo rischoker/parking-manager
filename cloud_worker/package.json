@@ -1,0 +1,18 @@
+{
+  "name": "parking-cloud",
+  "version": "1.2.0",
+  "private": true,
+  "description": "Servicio en la nube de ParkingManager (Cloudflare Workers + D1): p\u00e1gina del cliente, panel de consulta y bit\u00e1cora.",
+  "type": "module",
+  "scripts": {
+    "prepare-public": "node scripts/prepare-public.mjs",
+    "dev": "node scripts/prepare-public.mjs && wrangler dev",
+    "deploy": "node scripts/prepare-public.mjs && wrangler deploy",
+    "migrate:remote": "wrangler d1 migrations apply parking --remote",
+    "test": "node tests/run.mjs"
+  },
+  "devDependencies": {
+    "wrangler": "4.151.0",
+    "jsdom": "24.1.3"
+  }
+}

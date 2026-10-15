@@ -318,16 +318,17 @@
           </div>
           <div class="panel">
             <div class="section-title" style="font-size:13px;margin-bottom:4px" data-i18n="settings.cloud_section">Respaldo y panel remoto (nube)</div>
-            <div class="section-sub" style="margin-bottom:14px" data-i18n="settings.cloud_sub">Opcional: respalda automáticamente las sesiones completadas en una hoja de Google gratuita. Consulta CLOUD_BACKUP.md para configurarlo.</div>
+            <div class="section-sub" style="margin-bottom:14px" data-i18n="settings.cloud_sub">Opcional: envía a tu servicio en la nube cada ingreso, salida y acción de la bitácora, para consultarlos desde cualquier lugar. Consulta cloud_worker/DEPLOY.md (o CLOUD_BACKUP.md para Google Sheets).</div>
             <div class="field-row">
               <div class="checkbox-field" style="flex:none"><input type="checkbox" id="cloud-enabled"> <span data-i18n="checkbox.cloud_enabled">Habilitado</span></div>
             </div>
             <div class="field-row">
-              <div class="field"><label data-i18n="field.cloud_url">URL de la app web</label><input id="cloud-url" placeholder="https://script.google.com/macros/s/AKfycb.../exec"></div>
+              <div class="field"><label data-i18n="field.cloud_url">Dirección del servicio en la nube</label><input id="cloud-url" placeholder="https://parqueadero.tudominio.co/api/ingest"></div>
               <div class="field"><label data-i18n="field.cloud_secret">Secreto compartido</label><input id="cloud-secret" type="password"></div>
             </div>
             <div class="btn-row">
               <button class="btn primary small" id="save-cloud-btn" data-i18n="btn.save">Guardar</button>
+              <button class="btn small" id="test-cloud-btn" data-i18n="btn.test_cloud">Probar conexión</button>
               <button class="btn small" id="sync-now-btn" data-i18n="btn.sync_now">Sincronizar ahora</button>
             </div>
             <div class="rule-detail" id="cloud-status-line" style="margin-top:12px">--</div>
@@ -344,13 +345,13 @@
             <button class="btn primary small" id="save-remote-btn" data-i18n="btn.save">Guardar</button>
           </div>
           <div class="panel">
-            <div class="section-title" style="font-size:13px;margin-bottom:4px" data-i18n="settings.status_page_section">Página de estado (GitHub Pages)</div>
-            <div class="section-sub" style="margin-bottom:14px" data-i18n="settings.status_page_sub">Opcional: enlace de respaldo para que los clientes consulten su estado sin conexión a tu Wi-Fi. Requiere Cloud Backup activo. Consulta GITHUB_PAGES_STATUS.md.</div>
+            <div class="section-title" style="font-size:13px;margin-bottom:4px" data-i18n="settings.status_page_section">Página «Consulta desde cualquier lugar»</div>
+            <div class="section-sub" style="margin-bottom:14px" data-i18n="settings.status_page_sub">Opcional: enlace para que los clientes consulten su tiempo y tarifa sin conexión a tu Wi-Fi. Escribe la dirección de tu servicio en la nube (cloud_worker/DEPLOY.md, paso 9) o la de GitHub Pages (GITHUB_PAGES_STATUS.md). Requiere la conexión a la nube activa.</div>
             <div class="field-row">
               <div class="checkbox-field" style="flex:none"><input type="checkbox" id="status-page-enabled"> <span data-i18n="checkbox.status_page_enabled">Habilitado</span></div>
             </div>
             <div class="field-row">
-              <div class="field"><label data-i18n="field.status_page_url">URL de GitHub Pages</label><input id="status-page-url" placeholder="https://tuusuario.github.io/turepositorio"></div>
+              <div class="field"><label data-i18n="field.status_page_url">Dirección de la página</label><input id="status-page-url" placeholder="https://parqueadero.tudominio.co"></div>
             </div>
             <button class="btn primary small" id="save-status-page-btn" data-i18n="btn.save">Guardar</button>
           </div>

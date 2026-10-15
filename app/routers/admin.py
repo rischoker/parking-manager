@@ -732,6 +732,13 @@ def cloud_sync_now(db: DBSession = Depends(get_db)):
     return result
 
 
+@router.post("/cloud-sync/test", dependencies=[Depends(require_full_admin)])
+def cloud_sync_test(db: DBSession = Depends(get_db)):
+    """Checks the saved URL and secret without sending any real record."""
+    ok, message = cloud_sync.check_connection(db)
+    return {"ok": ok, "message": message}
+
+
 # ---------------------------------------------------------------------------
 # QR (any logged-in user can view/refresh it -- an attendant may need to
 # reprint or re-show it)

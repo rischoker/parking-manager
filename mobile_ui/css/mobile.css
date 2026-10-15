@@ -59,6 +59,7 @@ h1 { font-size: 18px; margin: 0 0 4px 0; }
   width: 100%; background: var(--panel-alt); border: 1px solid var(--border); border-radius: 8px;
   color: var(--text); padding: 13px 12px; font-size: 15px; font-family: inherit;
 }
+.field select { padding-left: 8px; }
 .field input:focus, .field select:focus { outline: none; border-color: var(--accent); }
 
 .btn {

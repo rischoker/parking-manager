@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="robots" content="noindex, nofollow">
+<title>Panel del parqueadero</title>
+<link rel="stylesheet" href="monitor.css">
+</head>
+<body>
+
+<!-- First-time setup: only shown while no owner exists yet -->
+<main id="setup-screen" class="center-screen" hidden>
+  <div class="box">
+    <h1>Configuración inicial</h1>
+    <p class="muted">Crea la llave del propietario. Necesitas el <strong>código de configuración</strong> (SETUP_TOKEN) que guardaste en Cloudflare.</p>
+    <label for="setup-name">Tu nombre</label>
+    <input id="setup-name" autocomplete="off" maxlength="60">
+    <label for="setup-token">Código de configuración</label>
+    <input id="setup-token" type="password" autocomplete="off">
+    <div class="error" id="setup-error"></div>
+    <button class="btn primary" id="setup-btn">Crear llave del propietario</button>
+    <div id="setup-result" hidden>
+      <p class="warn"><strong>Guarda esta llave ahora.</strong> Es la única vez que se muestra. Quien la tenga puede ver todo el panel.</p>
+      <div class="keybox" id="setup-key"></div>
+      <button class="btn" id="setup-copy">Copiar llave</button>
+      <button class="btn primary" id="setup-continue">Ya la guardé, continuar</button>
+    </div>
+  </div>
+</main>
+
+<!-- Sign-in -->
+<main id="login-screen" class="center-screen" hidden>
+  <div class="box">
+    <h1>Panel del parqueadero</h1>
+    <p class="muted">Consulta de ingresos y salidas. Solo lectura.</p>
+    <label for="login-key">Llave de acceso</label>
+    <input id="login-key" type="password" autocomplete="current-password" placeholder="pk_...">
+    <div class="error" id="login-error"></div>
+    <button class="btn primary" id="login-btn">Entrar</button>
+  </div>
+</main>
+
+<!-- The panel -->
+<div id="app" hidden>
+  <header class="topbar">
+    <div class="brand"><span class="mark">P</span><span>Panel del parqueadero</span></div>
+    <div class="who"><span id="who-name"></span> <span class="badge" id="who-role"></span>
+      <button class="btn small" id="logout-btn">Salir</button></div>
+  </header>
+  <nav class="tabs" id="tabs">
+    <button data-tab="now" class="active">Ahora</button>
+    <button data-tab="sessions">Registro de ingresos</button>
+    <button data-tab="monthly">Mensualistas</button>
+    <button data-tab="audit" class="owner-only">Bitácora</button>
+    <button data-tab="access" class="owner-only">Accesos</button>
+  </nav>
+
+  <section class="tab" id="tab-now">
+    <div class="kpis" id="kpis"></div>
+    <h2>En el parqueadero ahora <span class="muted" id="now-updated"></span></h2>
+    <div class="scroll"><table id="now-table"><thead></thead><tbody></tbody></table></div>
+    <div class="empty" id="now-empty" hidden>No hay vehículos de paso dentro en este momento.</div>
+    <h2>Mensualistas dentro</h2>
+    <div class="scroll"><table id="now-monthly"><thead></thead><tbody></tbody></table></div>
+    <div class="empty" id="now-monthly-empty" hidden>Ningún mensualista dentro en este momento.</div>
+  </section>
+
+  <section class="tab" id="tab-sessions" hidden>
+    <div class="filters" data-kind="sessions">
+      <label>Buscar<input data-f="q" placeholder="placa, nombre, torre, visita"></label>
+      <label>Tipo<select data-f="person_type"><option value="">Todos</option><option value="VISITOR">Visitante</option><option value="RESIDENT">Residente</option><option value="SERVICE">Servicio / domicilio</option></select></label>
+      <label>Estado<select data-f="status"><option value="">Todos</option><option value="OCCUPIED">Dentro</option><option value="PENDING_ASSIGNMENT">Esperando espacio</option><option value="COMPLETED">Salió</option><option value="CANCELLED">Cancelado</option></select></label>
+      <label>Desde<input type="date" data-f="date_from"></label>
+      <label>Hasta<input type="date" data-f="date_to"></label>
+      <button class="btn primary small" data-search>Buscar</button>
+      <a class="btn small" data-export>Descargar CSV</a>
+    </div>
+    <div class="scroll"><table id="sessions-table"><thead></thead><tbody></tbody></table></div>
+    <div class="empty" id="sessions-empty" hidden>No hay registros con estos filtros.</div>
+    <div class="pager" data-pager="sessions"><button class="btn small" data-prev>Anterior</button><span></span><button class="btn small" data-next>Siguiente</button></div>
+  </section>
+
+  <section class="tab" id="tab-monthly" hidden>
+    <div class="filters" data-kind="monthly-events">
+      <label>Buscar<input data-f="q" placeholder="placa o nombre"></label>
+      <label>Movimiento<select data-f="direction"><option value="">Todos</option><option value="IN">Entrada</option><option value="OUT">Salida</option></select></label>
+      <label>Desde<input type="date" data-f="date_from"></label>
+      <label>Hasta<input type="date" data-f="date_to"></label>
+      <button class="btn primary small" data-search>Buscar</button>
+      <a class="btn small" data-export>Descargar CSV</a>
+    </div>
+    <div class="scroll"><table id="monthly-table"><thead></thead><tbody></tbody></table></div>
+    <div class="empty" id="monthly-empty" hidden>No hay movimientos con estos filtros.</div>
+    <div class="pager" data-pager="monthly"><button class="btn small" data-prev>Anterior</button><span></span><button class="btn small" data-next>Siguiente</button></div>
+  </section>
+
+  <section class="tab" id="tab-audit" hidden>
+    <p class="muted">Quién hizo qué en el programa del parqueadero. Solo lectura: nadie puede editar ni borrar esto desde aquí.</p>
+    <div class="filters" data-kind="audit">
+      <label>Buscar<input data-f="q" placeholder="placa, usuario, detalle"></label>
+      <label>Acción<select data-f="action" id="audit-action"><option value="">Todas</option></select></label>
+      <label>Desde<input type="date" data-f="date_from"></label>
+      <label>Hasta<input type="date" data-f="date_to"></label>
+      <button class="btn primary small" data-search>Buscar</button>
+      <a class="btn small" data-export>Descargar CSV</a>
+    </div>
+    <div class="scroll"><table id="audit-table"><thead></thead><tbody></tbody></table></div>
+    <div class="empty" id="audit-empty" hidden>No hay registros con estos filtros.</div>
+    <div class="pager" data-pager="audit"><button class="btn small" data-prev>Anterior</button><span></span><button class="btn small" data-next>Siguiente</button></div>
+  </section>
+
+  <section class="tab" id="tab-access" hidden>
+    <h2>Personas con acceso al panel</h2>
+    <p class="muted">Cada persona entra con su propia llave y solo puede <strong>consultar</strong>. Puedes quitarle el acceso en cualquier momento.</p>
+    <div class="filters">
+      <label>Nombre de la persona<input id="viewer-name" maxlength="60" placeholder="Ej. Administración - Juan Pérez"></label>
+      <button class="btn primary small" id="viewer-create">Crear acceso</button>
+    </div>
+    <div id="viewer-new" class="newkey" hidden>
+      <p class="warn"><strong>Entrega esta llave a <span id="viewer-new-name"></span> y no la pierdas.</strong> Solo se muestra esta vez.</p>
+      <div class="keybox" id="viewer-new-key"></div>
+      <button class="btn small" id="viewer-copy">Copiar llave</button>
+    </div>
+    <div class="error" id="viewer-error"></div>
+    <div class="scroll"><table id="viewers-table"><thead></thead><tbody></tbody></table></div>
+    <h2>Últimas consultas al panel</h2>
+    <div class="scroll"><table id="logins-table"><thead></thead><tbody></tbody></table></div>
+  </section>
+</div>
+
+<div id="toast" class="toast" hidden></div>
+<script src="monitor.js"></script>
+</body>
+</html>

@@ -69,6 +69,19 @@ function doPost(e) {
     return jsonResponse({ ok: false, error: "Invalid or missing secret" });
   }
 
+  // Protocol v2 (ParkingManager 1.2+) labels every request with a `kind`.
+  // This Google Sheet keeps SESSIONS only: the audit trail and the monthly
+  // subscribers' movements are answered "ok" and ignored, so the program
+  // does not keep retrying them. (They are stored by the Cloudflare service,
+  // see cloud_worker/.) Older versions send no `kind`: that means "session".
+  var kind = body.kind || "session";
+  if (kind === "ping") {
+    return jsonResponse({ ok: true, service: "google-sheet-backup" });
+  }
+  if (kind !== "session") {
+    return jsonResponse({ ok: true, ignored: kind });
+  }
+
   var r = body.record || {};
   if (!r.session_token) {
     return jsonResponse({ ok: false, error: "record.session_token is required" });

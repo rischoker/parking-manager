@@ -14,6 +14,12 @@
   // ---------------------------------------------------------------------
   const APPS_SCRIPT_URL = "PASTE_YOUR_APPS_SCRIPT_WEB_APP_URL_HERE";
 
+  // When this same page is served by the Cloudflare service (cloud_worker/),
+  // a generated js/config.js sets window.PARKING_STATUS_ENDPOINT = "/api/session"
+  // and the page reads from there instead of from Google. On GitHub Pages
+  // that file does not exist and nothing changes.
+  const ENDPOINT = window.PARKING_STATUS_ENDPOINT || APPS_SCRIPT_URL;
+
   function qs(name) {
     return new URLSearchParams(window.location.search).get(name);
   }
@@ -46,10 +52,12 @@
   function emptyStateHtml(title, sub) {
     return `<h1 style="text-align:center">${escapeHtml(title)}</h1>
       <p class="hint" style="text-align:center">${escapeHtml(sub)}</p>
-      <button class="refresh-btn" onclick="location.reload()">${t("btn.retry")}</button>`;
+      <button class="refresh-btn" data-reload>${t("btn.retry")}</button>`;
   }
 
   function init() {
+    // No inline event handlers (the page may be served with a strict Content-Security-Policy).
+    document.addEventListener("click", e => { if (e.target.closest("[data-reload]")) location.reload(); });
     applyStaticTranslations(document);
     document.documentElement.setAttribute("lang", getLang());
 
@@ -59,7 +67,7 @@
 
     wireLanguageToggle(() => { if (lastRecord) render(lastRecord); });
 
-    if (!APPS_SCRIPT_URL || APPS_SCRIPT_URL.indexOf("PASTE_YOUR") === 0) {
+    if (!ENDPOINT || ENDPOINT.indexOf("PASTE_YOUR") === 0) {
       content.innerHTML = emptyStateHtml(t("status_page.eyebrow"), t("status_page.not_configured"));
       return;
     }
@@ -72,7 +80,7 @@
 
     async function load() {
       try {
-        const url = APPS_SCRIPT_URL + (APPS_SCRIPT_URL.includes("?") ? "&" : "?") + "token=" + encodeURIComponent(token);
+        const url = ENDPOINT + (ENDPOINT.includes("?") ? "&" : "?") + "token=" + encodeURIComponent(token);
         const res = await fetch(url);
         const data = await res.json();
         if (!data.ok) {

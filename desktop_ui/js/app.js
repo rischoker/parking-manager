@@ -1214,6 +1214,22 @@
     } catch (e) { toastError(e); }
   });
 
+  document.getElementById("test-cloud-btn").addEventListener("click", async () => {
+    try {
+      // Test what is typed on screen, not only what was saved before.
+      await api("/api/admin/cloud-sync", {
+        method: "PUT",
+        body: JSON.stringify({
+          url: document.getElementById("cloud-url").value.trim(),
+          secret: document.getElementById("cloud-secret").value.trim(),
+        }),
+      });
+      const r = await api("/api/admin/cloud-sync/test", { method: "POST" });
+      if (r.ok) toast(t("toast.cloud_test_ok"));
+      else toast(t("toast.cloud_test_failed", { reason: translateServerMessage(r.message) }), "error");
+    } catch (e) { toastError(e); }
+  });
+
   document.getElementById("sync-now-btn").addEventListener("click", async () => {
     try {
       const result = await api("/api/admin/cloud-sync/sync-now", { method: "POST" });
