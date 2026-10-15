@@ -28,6 +28,15 @@
     <div class="field"><label data-i18n="field.full_name">Nombre completo</label><input id="f-name" placeholder="Jane Doe" autocomplete="name"></div>
     <div class="field"><label data-i18n="field.license_plate">Placa</label><input id="f-plate" placeholder="ABC123" autocomplete="off" style="text-transform:uppercase;letter-spacing:1px"></div>
     <div class="field"><label data-i18n="field.phone_optional">Teléfono (opcional)</label><input id="f-phone" placeholder="300 000 0000" type="tel" autocomplete="tel"></div>
+    <div class="field"><label data-i18n="field.person_type">Soy</label>
+      <select id="f-type">
+        <option value="VISITOR" data-i18n="person.VISITOR">Visitante</option>
+        <option value="RESIDENT" data-i18n="person.RESIDENT">Residente</option>
+        <option value="SERVICE" data-i18n="person.SERVICE">Servicio / domicilio</option>
+      </select></div>
+    <div class="field"><label data-i18n="field.unit_optional">Torre / apartamento (opcional)</label><input id="f-unit" maxlength="40" data-i18n-placeholder="field.unit_placeholder" placeholder="Torre 3 - 402" autocomplete="off"></div>
+    <div class="field" id="f-visiting-field"><label data-i18n="field.visiting_optional">A quién visitas (opcional)</label><input id="f-visiting" maxlength="120" autocomplete="off"></div>
+    <div class="field"><label data-i18n="field.vehicle_optional">Vehículo: marca y color (opcional)</label><input id="f-vehicle" maxlength="80" data-i18n-placeholder="field.vehicle_placeholder" placeholder="Mazda 3 rojo" autocomplete="off"></div>
 
     <button class="btn" id="submit-btn" data-i18n="btn.register_vehicle">Registrar vehículo</button>
     <p class="legal" data-i18n="register.legal">Al registrarte confirmas que los datos anteriores son correctos. La hora de entrada, la asignación de espacio y el cargo final son establecidos por el encargado del parqueadero y no se pueden cambiar desde esta página.</p>

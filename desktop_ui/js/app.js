@@ -110,6 +110,25 @@
     return String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
   }
 
+  // Second line shown under a customer's name: who they are (resident /
+  // visitor / service), where they are going, whom they visit and the vehicle.
+  function whoLine(o) {
+    if (!o) return "";
+    const bits = [];
+    if (o.unit) bits.push(escapeHtml(o.unit));
+    if (o.visiting) bits.push(t("who.visiting", { name: escapeHtml(o.visiting) }));
+    if (o.vehicle) bits.push(escapeHtml(o.vehicle));
+    const type = o.person_type || "VISITOR";
+    return `<div class="who-line"><span class="person-badge ${escapeHtml(type)}">${escapeHtml(t("person." + type))}</span>${bits.join(" &middot; ")}</div>`;
+  }
+
+  function fmtDateTime(iso) {
+    if (!iso) return "--";
+    return new Date(iso).toLocaleString(currentLocale(), {
+      year: "numeric", month: "short", day: "2-digit", hour: "2-digit", minute: "2-digit", second: "2-digit",
+    });
+  }
+
   // ------------------------------------------------------------------
   // Language
   // ------------------------------------------------------------------
@@ -209,6 +228,7 @@
     dashboard: "nav.dashboard", active: "nav.active", history: "nav.history",
     revenue: "nav.revenue", pricing: "nav.pricing", schedules: "nav.schedules",
     monthly: "nav.monthly", users: "nav.users", settings: "nav.settings", qr: "nav.qr",
+    audit: "nav.audit",
   };
 
   function switchView(name) {
@@ -226,6 +246,7 @@
     else if (name === "pricing") loadPricing();
     else if (name === "schedules") loadSchedules();
     else if (name === "monthly") loadMonthlyFees();
+    else if (name === "audit") loadAudit(true);
     else if (name === "users") loadUsers();
     else if (name === "settings") loadSettings();
     else if (name === "qr") loadQr();
@@ -256,7 +277,7 @@
     pendingPanel.style.display = data.pending.length ? "block" : "none";
     document.getElementById("pending-table-body").innerHTML = data.pending.map(p => `
       <tr>
-        <td>${escapeHtml(p.customer_name)}</td>
+        <td>${escapeHtml(p.customer_name)}${whoLine(p)}</td>
         <td class="mono">${escapeHtml(p.plate)}</td>
         <td>${fmtMinutes(p.waiting_minutes)}</td>
         <td><button class="btn small primary" data-assign="${p.session_id}">${t("btn.assign_space")}</button></td>
@@ -314,6 +335,7 @@
       <div class="space-status-label">${t("space.occupied")}</div>
       <div class="space-plate">${escapeHtml(o.plate)}</div>
       <div class="space-customer">${escapeHtml(o.customer_name)}</div>
+      ${whoLine(o)}
       <div class="space-meta"><span>${t("table.entry")} ${fmtClock(o.entry_timestamp)}</span><span>${fmtMinutes(o.elapsed_minutes)}</span></div>
       <div class="space-charge">${money(o.current_amount)}</div>
     </div>`;
@@ -343,10 +365,16 @@
       <div class="detail-row"><span class="k">${t("detail.customer")}</span><span class="v">${escapeHtml(s.customer_name)}</span></div>
       <div class="detail-row"><span class="k">${t("detail.plate")}</span><span class="v">${escapeHtml(s.plate)}</span></div>
       <div class="detail-row"><span class="k">${t("detail.phone")}</span><span class="v">${escapeHtml(s.phone || "--")}</span></div>
+      <div class="detail-row"><span class="k">${t("detail.person_type")}</span><span class="v"><span class="person-badge ${escapeHtml(s.person_type)}">${escapeHtml(t("person." + s.person_type))}</span></span></div>
+      ${s.unit ? `<div class="detail-row"><span class="k">${t("detail.unit")}</span><span class="v">${escapeHtml(s.unit)}</span></div>` : ""}
+      ${s.visiting ? `<div class="detail-row"><span class="k">${t("detail.visiting")}</span><span class="v">${escapeHtml(s.visiting)}</span></div>` : ""}
+      ${s.vehicle ? `<div class="detail-row"><span class="k">${t("detail.vehicle")}</span><span class="v">${escapeHtml(s.vehicle)}</span></div>` : ""}
       <div class="detail-row"><span class="k">${t("detail.space")}</span><span class="v">${s.space_number || "--"}</span></div>
       <div class="detail-row"><span class="k">${t("detail.entry")}</span><span class="v">${fmtTime(s.entry_timestamp)}</span></div>
       <div class="detail-row"><span class="k">${t("detail.exit")}</span><span class="v">${s.exit_timestamp ? fmtTime(s.exit_timestamp) : "--"}</span></div>
       <div class="detail-row"><span class="k">${t("detail.rate")}</span><span class="v">${escapeHtml(s.pricing_rule_name || "--")}</span></div>
+      <div class="detail-row"><span class="k">${t("detail.registered_by")}</span><span class="v">${s.source === "MANUAL" ? escapeHtml(s.checked_in_by || "--") : t("who.qr")}</span></div>
+      ${s.checked_out_by ? `<div class="detail-row"><span class="k">${t("detail.exit_by")}</span><span class="v">${escapeHtml(s.checked_out_by)}</span></div>` : ""}
       <div class="detail-row"><span class="k">${t("detail.status")}</span><span class="v"><span class="status-badge ${s.status}">${statusLabel(s.status)}</span></span></div>
       <div class="btn-row">
         ${s.status === "OCCUPIED" ? `<button class="btn primary" id="modal-exit-btn">${t("btn.register_exit")}</button>` : ""}
@@ -413,7 +441,7 @@
     data.pending.forEach(p => rows.push(`
       <tr>
         <td class="ticket-id">TKT-${String(p.session_id).padStart(6, "0")}</td>
-        <td>${escapeHtml(p.customer_name)}</td><td class="mono">${escapeHtml(p.plate)}</td>
+        <td>${escapeHtml(p.customer_name)}${whoLine(p)}</td><td class="mono">${escapeHtml(p.plate)}</td>
         <td><span class="status-badge PENDING_ASSIGNMENT">${t("dash.pending_badge")}</span></td>
         <td>${fmtClock(p.entry_timestamp)}</td><td>${fmtMinutes(p.waiting_minutes)}</td><td>--</td>
         <td><button class="btn small primary" data-assign="${p.session_id}">${t("btn.assign")}</button></td>
@@ -423,7 +451,7 @@
       rows.push(`
         <tr>
           <td class="ticket-id">TKT-${String(o.session_id).padStart(6, "0")}</td>
-          <td>${escapeHtml(o.customer_name)}</td><td class="mono">${escapeHtml(o.plate)}</td>
+          <td>${escapeHtml(o.customer_name)}${whoLine(o)}</td><td class="mono">${escapeHtml(o.plate)}</td>
           <td>${s.number}</td><td>${fmtClock(o.entry_timestamp)}</td>
           <td>${fmtMinutes(o.elapsed_minutes)}</td><td>${money(o.current_amount)}</td>
           <td><button class="btn small" data-detail="${o.session_id}">${t("btn.view")}</button></td>
@@ -450,6 +478,10 @@
     const space = document.getElementById("filter-space").value.trim();
     const status = document.getElementById("filter-status").value;
     const preset = document.getElementById("filter-date-preset").value;
+    const personType = document.getElementById("filter-person-type").value;
+    const unit = document.getElementById("filter-unit").value.trim();
+    if (personType) params.set("person_type", personType);
+    if (unit) params.set("unit", unit);
     if (plate) params.set("plate", plate);
     if (customer) params.set("customer", customer);
     if (space) params.set("space", space);
@@ -479,7 +511,7 @@
     tbody.innerHTML = data.results.map(s => `
       <tr>
         <td class="ticket-id">TKT-${String(s.id).padStart(6, "0")}</td>
-        <td>${escapeHtml(s.customer_name)}</td>
+        <td>${escapeHtml(s.customer_name)}${whoLine(s)}</td>
         <td class="mono">${escapeHtml(s.plate)}</td>
         <td>${s.space_number || "--"}</td>
         <td>${fmtTime(s.entry_timestamp)}</td>
@@ -488,6 +520,7 @@
         <td>${escapeHtml(s.pricing_rule_name || "--")}</td>
         <td><span class="status-badge ${s.status}">${statusLabel(s.status)}</span></td>
         <td>${s.final_amount != null ? money(s.final_amount) : "--"}</td>
+        <td class="who-line" style="white-space:nowrap">${s.source === "MANUAL" ? escapeHtml(s.checked_in_by || "--") : t("who.qr")} &rarr; ${escapeHtml(s.checked_out_by || "--")}</td>
       </tr>`).join("");
 
     // Pager: "Showing 1-100 of 6065" with Previous / Next.
@@ -750,6 +783,7 @@
         <div class="btn-row" style="margin-top:0;flex-wrap:wrap">
           <button class="btn small primary" data-log-payment="${s.id}">${t("monthly.log_payment")}</button>
           <button class="btn small" data-toggle-parked="${s.id}" data-parked="${s.currently_parked}">${s.currently_parked ? t("monthly.mark_left") : t("monthly.mark_parked")}</button>
+          <button class="btn small" data-events="${s.id}">${t("monthly.movements")}</button>
           <button class="btn small admin-only" data-edit-sub="${s.id}">${t("btn.edit")}</button>
           <button class="btn small danger admin-only" data-cancel-sub="${s.id}">${t("monthly.cancel_subscription")}</button>
         </div>
@@ -768,6 +802,8 @@
           loadMonthlyFees();
         } catch (e) { toastError(e); }
       }));
+    list.querySelectorAll("[data-events]").forEach(btn =>
+      btn.addEventListener("click", () => openEventsModal(btn.dataset.events, active.find(s => s.id == btn.dataset.events))));
     list.querySelectorAll("[data-edit-sub]").forEach(btn =>
       btn.addEventListener("click", () => openSubscriptionModal(active.find(s => s.id == btn.dataset.editSub))));
     list.querySelectorAll("[data-cancel-sub]").forEach(btn =>
@@ -779,6 +815,22 @@
           loadMonthlyFees();
         } catch (e) { toastError(e); }
       }));
+  }
+
+  async function openEventsModal(subId, sub) {
+    let events;
+    try { events = await api(`/api/admin/subscriptions/${subId}/events`); } catch (e) { toastError(e); return; }
+    const rows = events.map(e => `
+      <tr>
+        <td>${fmtDateTime(e.ts)}</td>
+        <td><span class="dir-badge ${e.direction}">${t("dir." + e.direction)}</span></td>
+        <td>${escapeHtml(e.recorded_by || "--")}</td>
+      </tr>`).join("");
+    document.getElementById("events-modal-body").innerHTML = `
+      <div class="rule-detail" style="margin-bottom:10px">${sub ? escapeHtml(sub.customer_name) + " &middot; " + escapeHtml(sub.plate) : ""}</div>
+      ${events.length ? `<table><thead><tr><th>${t("audit.col_time")}</th><th>${t("audit.col_movement")}</th><th>${t("table.recorded_by")}</th></tr></thead><tbody>${rows}</tbody></table>`
+                      : `<p style="color:var(--text-dim)">${t("events.empty")}</p>`}`;
+    openModal("events-modal");
   }
 
   async function openSubscriptionModal(sub) {
@@ -853,6 +905,138 @@
       } catch (e) { toastError(e); }
     });
     openModal("payment-modal");
+  }
+
+  // ------------------------------------------------------------------
+  // Check-in: the attendant registers a vehicle at the gate
+  // ------------------------------------------------------------------
+  async function openCheckinModal() {
+    let dash;
+    try { dash = await api("/api/admin/dashboard"); } catch (e) { toastError(e); return; }
+    const free = dash.spaces.filter(s => s.status === "AVAILABLE" && !s.monthly);
+    document.getElementById("checkin-modal-body").innerHTML = `
+      <div class="field-row">
+        <div class="field"><label>${t("field.customer_name")}</label><input id="ci-name" autocomplete="off"></div>
+        <div class="field"><label>${t("table.plate")}</label><input id="ci-plate" autocomplete="off" style="text-transform:uppercase" placeholder="ABC123"></div>
+      </div>
+      <div class="field-row">
+        <div class="field"><label>${t("checkin.person_type")}</label>
+          <select id="ci-type">
+            <option value="VISITOR">${t("person.VISITOR")}</option>
+            <option value="RESIDENT">${t("person.RESIDENT")}</option>
+            <option value="SERVICE">${t("person.SERVICE")}</option>
+          </select></div>
+        <div class="field"><label>${t("checkin.unit")}</label><input id="ci-unit" autocomplete="off" placeholder="${t("checkin.unit_placeholder")}"></div>
+      </div>
+      <div class="field-row">
+        <div class="field"><label>${t("checkin.visiting")}</label><input id="ci-visiting" autocomplete="off"></div>
+        <div class="field"><label>${t("checkin.vehicle")}</label><input id="ci-vehicle" autocomplete="off" placeholder="${t("checkin.vehicle_placeholder")}"></div>
+      </div>
+      <div class="field-row">
+        <div class="field"><label>${t("field.phone")}</label><input id="ci-phone" autocomplete="off"></div>
+        <div class="field"><label>${t("field.space")}</label>
+          <select id="ci-space"><option value="">${t("checkin.assign_later")}</option>
+            ${free.map(s => `<option value="${s.id}">${escapeHtml(s.number)}</option>`).join("")}</select></div>
+      </div>
+      <div class="btn-row"><button class="btn primary" id="ci-save-btn">${t("checkin.save")}</button></div>`;
+    document.getElementById("ci-save-btn").addEventListener("click", async () => {
+      const val = id => document.getElementById(id).value.trim();
+      const payload = {
+        name: val("ci-name"), plate: val("ci-plate"), phone: val("ci-phone") || null,
+        person_type: val("ci-type"), unit: val("ci-unit") || null,
+        visiting: val("ci-visiting") || null, vehicle: val("ci-vehicle") || null,
+        space_id: val("ci-space") ? Number(val("ci-space")) : null,
+      };
+      try {
+        await api("/api/admin/sessions/check-in", { method: "POST", body: JSON.stringify(payload) });
+        toast(t("toast.checkin_done"));
+        closeModal("checkin-modal");
+        loadView(activeViewName());
+      } catch (e) { toastError(e); }
+    });
+    openModal("checkin-modal");
+    document.getElementById("ci-name").focus();
+  }
+
+  // ------------------------------------------------------------------
+  // Audit trail ("bitacora") + monthly-subscriber movements (admin only)
+  // ------------------------------------------------------------------
+  const AUDIT_PAGE_SIZE = 100;
+  const AUDIT_ACTIONS = [
+    "SESSION_REGISTERED", "SESSION_CHECKIN", "SPACE_ASSIGNED", "SESSION_EXIT", "SESSION_CANCELLED",
+    "SUBSCRIPTION_CREATED", "SUBSCRIPTION_UPDATED", "SUBSCRIPTION_CANCELLED", "PAYMENT_LOGGED",
+    "PRICING_CREATED", "PRICING_UPDATED", "PRICING_DELETED",
+    "SCHEDULE_CREATED", "SCHEDULE_UPDATED", "SCHEDULE_DELETED",
+    "USER_CREATED", "USER_UPDATED", "USER_PIN_RESET", "PIN_CHANGED",
+    "SETTINGS_UPDATED", "CLOUD_SYNC_UPDATED", "REMOTE_ACCESS_UPDATED", "STATUS_PAGE_UPDATED",
+    "LOGIN_OK", "LOGIN_FAILED",
+  ];
+  let auditOffset = 0;
+
+  function auditKind() { return document.getElementById("audit-kind").value; }
+
+  function auditParams() {
+    const params = new URLSearchParams();
+    const q = document.getElementById("audit-q").value.trim();
+    const preset = document.getElementById("audit-date-preset").value;
+    const action = document.getElementById("audit-action").value;
+    if (q) params.set("q", q);
+    if (preset) params.set("date_preset", preset);
+    if (action && auditKind() === "actions") params.set("action", action);
+    return params;
+  }
+
+  function ensureAuditActionOptions() {
+    const sel = document.getElementById("audit-action");
+    const current = sel.value;
+    sel.innerHTML = `<option value="">${t("filter.status_any")}</option>` +
+      AUDIT_ACTIONS.map(a => `<option value="${a}">${escapeHtml(t("audit.a." + a))}</option>`).join("");
+    sel.value = current;
+  }
+
+  async function loadAudit(resetPage = true) {
+    if (resetPage === true) auditOffset = 0;
+    ensureAuditActionOptions();
+    const kind = auditKind();
+    document.getElementById("audit-action-field").style.display = kind === "actions" ? "" : "none";
+    const params = auditParams();
+    params.set("limit", AUDIT_PAGE_SIZE);
+    params.set("offset", auditOffset);
+    const url = (kind === "actions" ? "/api/admin/audit?" : "/api/admin/monthly-events?") + params.toString();
+    let data;
+    try { data = await api(url); } catch (e) { toastError(e); return; }
+
+    const head = document.getElementById("audit-table-head");
+    const body = document.getElementById("audit-table-body");
+    if (kind === "actions") {
+      head.innerHTML = `<tr><th>${t("audit.col_time")}</th><th>${t("audit.col_user")}</th><th>${t("audit.col_action")}</th><th>${t("audit.col_subject")}</th><th>${t("audit.col_details")}</th></tr>`;
+      body.innerHTML = data.results.map(a => `
+        <tr>
+          <td style="white-space:nowrap">${fmtDateTime(a.ts)}</td>
+          <td>${escapeHtml(a.username)}</td>
+          <td>${escapeHtml(t("audit.a." + a.action))}</td>
+          <td class="mono">${escapeHtml(a.subject || "--")}</td>
+          <td class="who-line">${escapeHtml(a.details || "")}</td>
+        </tr>`).join("");
+    } else {
+      head.innerHTML = `<tr><th>${t("audit.col_time")}</th><th>${t("audit.col_movement")}</th><th>${t("table.customer")}</th><th>${t("table.plate")}</th><th>${t("table.space")}</th><th>${t("table.recorded_by")}</th></tr>`;
+      body.innerHTML = data.results.map(e => `
+        <tr>
+          <td style="white-space:nowrap">${fmtDateTime(e.ts)}</td>
+          <td><span class="dir-badge ${e.direction}">${t("dir." + e.direction)}</span></td>
+          <td>${escapeHtml(e.customer_name)}</td>
+          <td class="mono">${escapeHtml(e.plate)}</td>
+          <td>${escapeHtml(e.space_number || "--")}</td>
+          <td>${escapeHtml(e.recorded_by || "--")}</td>
+        </tr>`).join("");
+    }
+    document.getElementById("audit-empty").style.display = data.results.length ? "none" : "block";
+    const total = data.total, first = total ? auditOffset + 1 : 0;
+    const last = Math.min(auditOffset + data.results.length, total);
+    document.getElementById("audit-page-info").textContent = t("history.showing", { first, last, total });
+    document.getElementById("audit-prev").disabled = auditOffset <= 0;
+    document.getElementById("audit-next").disabled = last >= total;
+    document.getElementById("audit-pager").style.display = total > AUDIT_PAGE_SIZE ? "flex" : "none";
   }
 
   // ------------------------------------------------------------------
@@ -1119,6 +1303,23 @@
   document.getElementById("close-payment-modal").addEventListener("click", () => closeModal("payment-modal"));
   document.getElementById("close-user-modal").addEventListener("click", () => closeModal("user-modal"));
   document.getElementById("close-reset-pin-modal").addEventListener("click", () => closeModal("reset-pin-modal"));
+  document.getElementById("close-checkin-modal").addEventListener("click", () => closeModal("checkin-modal"));
+  document.getElementById("close-events-modal").addEventListener("click", () => closeModal("events-modal"));
+  document.getElementById("open-checkin-btn").addEventListener("click", openCheckinModal);
+  document.getElementById("audit-search-btn").addEventListener("click", () => loadAudit(true));
+  document.getElementById("audit-kind").addEventListener("change", () => loadAudit(true));
+  document.getElementById("audit-prev").addEventListener("click", () => {
+    auditOffset = Math.max(0, auditOffset - AUDIT_PAGE_SIZE); loadAudit(false);
+  });
+  document.getElementById("audit-next").addEventListener("click", () => {
+    auditOffset += AUDIT_PAGE_SIZE; loadAudit(false);
+  });
+  document.getElementById("export-audit-btn").addEventListener("click", () => {
+    const kind = auditKind();
+    const params = auditParams().toString();
+    downloadFile(kind === "actions" ? `/api/admin/export/audit?${params}` : `/api/admin/export/monthly-events?${params}`,
+                 kind === "actions" ? "parking_audit.csv" : "parking_monthly_movements.csv");
+  });
   document.querySelectorAll(".modal-backdrop").forEach(bd => bd.addEventListener("click", e => { if (e.target === bd) bd.classList.remove("open"); }));
 
   document.getElementById("new-rule-btn").addEventListener("click", () => openRuleModal(null));
@@ -1140,15 +1341,18 @@
   document.getElementById("export-xlsx-btn").addEventListener("click", () => downloadExport("xlsx"));
 
   async function downloadExport(kind) {
-    const token = localStorage.getItem(TOKEN_KEY);
     // Same filters as the table on screen (plate, customer, space, status, dates).
-    const res = await fetch(`/api/admin/export/${kind}?` + historyFilterParams().toString(),
-      { headers: { Authorization: "Bearer " + token } });
+    return downloadFile(`/api/admin/export/${kind}?` + historyFilterParams().toString(), `parking_history.${kind}`);
+  }
+
+  async function downloadFile(url, fallbackName) {
+    const token = localStorage.getItem(TOKEN_KEY);
+    const res = await fetch(url, { headers: { Authorization: "Bearer " + token } });
     if (!res.ok) { toast(t("toast.export_failed"), "error"); return; }
     const blob = await res.blob();
     const disposition = res.headers.get("Content-Disposition") || "";
     const match = disposition.match(/filename="(.+)"/);
-    const filename = match ? match[1] : `parking_history.${kind}`;
+    const filename = match ? match[1] : fallbackName;
     const a = document.createElement("a");
     a.href = URL.createObjectURL(blob);
     a.download = filename;

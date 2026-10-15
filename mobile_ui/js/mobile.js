@@ -49,6 +49,11 @@ const PM = (() => {
       const name = document.getElementById("f-name").value.trim();
       const plate = document.getElementById("f-plate").value.trim();
       const phone = document.getElementById("f-phone").value.trim();
+      const personType = document.getElementById("f-type").value;
+      const unit = document.getElementById("f-unit").value.trim();
+      const vehicle = document.getElementById("f-vehicle").value.trim();
+      // "Visiting whom" makes no sense for a resident, so it is not sent.
+      const visiting = personType === "RESIDENT" ? "" : document.getElementById("f-visiting").value.trim();
       errBox.classList.remove("show");
 
       if (name.length < 2) { showError(t("error.enter_name")); return; }
@@ -64,7 +69,10 @@ const PM = (() => {
         const res = await fetch("/api/customer/register", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ name, plate, phone: phone || null }),
+          body: JSON.stringify({
+            name, plate, phone: phone || null, person_type: personType,
+            unit: unit || null, visiting: visiting || null, vehicle: vehicle || null,
+          }),
         });
         const data = await res.json();
         // FastAPI answers validation failures (HTTP 422) with a LIST in
@@ -83,6 +91,14 @@ const PM = (() => {
       errBox.textContent = msg;
       errBox.classList.add("show");
     }
+
+    // Residents are not visiting anyone: hide that field for them.
+    const typeSel = document.getElementById("f-type");
+    const syncVisiting = () => {
+      document.getElementById("f-visiting-field").style.display = typeSel.value === "RESIDENT" ? "none" : "";
+    };
+    typeSel.addEventListener("change", syncVisiting);
+    syncVisiting();
 
     btn.addEventListener("click", submit);
     document.querySelectorAll(".field input").forEach(inp =>

@@ -8,10 +8,53 @@ from pydantic import BaseModel, Field, field_validator
 # ---------------------------------------------------------------------------
 # Customer-facing
 # ---------------------------------------------------------------------------
-class CustomerRegisterRequest(BaseModel):
+PERSON_TYPES = ("VISITOR", "RESIDENT", "SERVICE")
+
+
+def _free_text(v: Optional[str], max_len: int) -> Optional[str]:
+    """Trim, collapse whitespace, drop control characters, cap the length;
+    empty becomes None. (Spreadsheet formula characters are neutralised on
+    export, not here, so the original text is preserved.)"""
+    if v is None:
+        return None
+    text = "".join(ch for ch in str(v) if ch.isprintable())
+    text = " ".join(text.split())
+    return text[:max_len] or None
+
+
+class VehicleEntryBase(BaseModel):
+    """Fields shared by a customer's QR self-registration and the attendant's
+    manual check-in at the gate."""
     name: str = Field(min_length=2, max_length=120)
     plate: str = Field(min_length=2, max_length=20)
     phone: Optional[str] = Field(default=None, max_length=30)
+    person_type: str = "VISITOR"                       # VISITOR | RESIDENT | SERVICE
+    unit: Optional[str] = Field(default=None, max_length=60)       # tower / apartment
+    visiting: Optional[str] = Field(default=None, max_length=160)  # resident being visited
+    vehicle: Optional[str] = Field(default=None, max_length=120)   # make / colour / type
+
+    @field_validator("person_type")
+    @classmethod
+    def check_person_type(cls, v: str) -> str:
+        v = (v or "VISITOR").strip().upper()
+        if v not in PERSON_TYPES:
+            raise ValueError("Person type must be VISITOR, RESIDENT or SERVICE.")
+        return v
+
+    @field_validator("unit")
+    @classmethod
+    def clean_unit(cls, v: Optional[str]) -> Optional[str]:
+        return _free_text(v, 40)
+
+    @field_validator("visiting")
+    @classmethod
+    def clean_visiting(cls, v: Optional[str]) -> Optional[str]:
+        return _free_text(v, 120)
+
+    @field_validator("vehicle")
+    @classmethod
+    def clean_vehicle(cls, v: Optional[str]) -> Optional[str]:
+        return _free_text(v, 80)
 
     @field_validator("plate")
     @classmethod
@@ -42,6 +85,17 @@ class CustomerRegisterRequest(BaseModel):
         if not re.fullmatch(r"\+?\(?[0-9][0-9 ()-]{5,28}", phone):
             raise ValueError("Phone may only contain digits, spaces, +, - and parentheses.")
         return phone
+
+
+class CustomerRegisterRequest(VehicleEntryBase):
+    """The public QR page."""
+
+
+class CheckInRequest(VehicleEntryBase):
+    """The attendant registering a vehicle at the gate (any logged-in role).
+    `space_id` is optional: with it the car is parked immediately, without it
+    the entry waits in the pending queue like a QR registration."""
+    space_id: Optional[int] = None
 
 
 class CustomerRegisterResponse(BaseModel):
@@ -79,6 +133,10 @@ class OccupiedInfo(BaseModel):
     elapsed_minutes: float
     current_amount: float
     pricing_rule_name: str
+    person_type: str = "VISITOR"
+    unit: Optional[str] = None
+    visiting: Optional[str] = None
+    vehicle: Optional[str] = None
 
 
 class MonthlyReservationInfo(BaseModel):
@@ -104,6 +162,10 @@ class PendingRegistration(BaseModel):
     phone: Optional[str]
     entry_timestamp: datetime
     waiting_minutes: float
+    person_type: str = "VISITOR"
+    unit: Optional[str] = None
+    visiting: Optional[str] = None
+    vehicle: Optional[str] = None
 
 
 class DashboardResponse(BaseModel):
@@ -134,6 +196,13 @@ class SessionDetail(BaseModel):
     final_amount: Optional[float]
     estimated_amount: Optional[float]
     currency: str
+    person_type: str = "VISITOR"
+    unit: Optional[str] = None
+    visiting: Optional[str] = None
+    vehicle: Optional[str] = None
+    source: str = "QR"
+    checked_in_by: Optional[str] = None
+    checked_out_by: Optional[str] = None
 
 
 # ---------------------------------------------------------------------------
@@ -318,3 +387,27 @@ class LogPaymentRequest(BaseModel):
 
 class TogglePartedRequest(BaseModel):
     parked: bool
+
+
+# ---------------------------------------------------------------------------
+# Audit trail and monthly-subscriber movements
+# ---------------------------------------------------------------------------
+class AuditOut(BaseModel):
+    id: int
+    ts: datetime
+    username: str
+    role: Optional[str]
+    action: str
+    subject: Optional[str]
+    details: Optional[str]
+
+
+class MonthlyEventOut(BaseModel):
+    id: int
+    subscription_id: int
+    direction: str
+    ts: datetime
+    recorded_by: Optional[str]
+    customer_name: str
+    plate: str
+    space_number: Optional[str]

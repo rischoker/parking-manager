@@ -43,6 +43,7 @@
       <div class="nav-item admin-only" data-view="pricing"><span class="nav-icon">%</span><span class="label" data-i18n="nav.pricing">Tarifas</span></div>
       <div class="nav-item admin-only" data-view="schedules"><span class="nav-icon">◷</span><span class="label" data-i18n="nav.schedules">Horarios</span></div>
       <div class="nav-item" data-view="monthly"><span class="nav-icon">🅿</span><span class="label" data-i18n="nav.monthly">Mensualidades</span></div>
+      <div class="nav-item admin-only" data-view="audit"><span class="nav-icon">☰</span><span class="label" data-i18n="nav.audit">Bitácora</span></div>
       <div class="nav-item admin-only" data-view="users"><span class="nav-icon">☺</span><span class="label" data-i18n="nav.users">Usuarios</span></div>
       <div class="nav-item" data-view="settings"><span class="nav-icon">⚙</span><span class="label" data-i18n="nav.settings">Configuración</span></div>
       <div class="nav-item" data-view="qr"><span class="nav-icon">▣</span><span class="label" data-i18n="nav.qr">Código QR</span></div>
@@ -75,6 +76,9 @@
 
       <!-- ---------- DASHBOARD ---------- -->
       <div class="view active" id="view-dashboard">
+        <div class="dash-actions">
+          <button class="btn primary" id="open-checkin-btn" data-i18n="btn.checkin">+ Registrar ingreso</button>
+        </div>
         <div class="stat-row">
           <div class="stat-card"><div class="stat-label" data-i18n="dash.available">Disponibles</div><div class="stat-value green" id="stat-available">--</div></div>
           <div class="stat-card"><div class="stat-label" data-i18n="dash.occupied">Ocupados</div><div class="stat-value orange" id="stat-occupied">--</div></div>
@@ -145,6 +149,16 @@
               </select>
             </div>
             <div class="field">
+              <label data-i18n="filter.person_type">Tipo</label>
+              <select id="filter-person-type">
+                <option value="" data-i18n="filter.status_any">Cualquiera</option>
+                <option value="VISITOR" data-i18n="person.VISITOR">Visitante</option>
+                <option value="RESIDENT" data-i18n="person.RESIDENT">Residente</option>
+                <option value="SERVICE" data-i18n="person.SERVICE">Servicio</option>
+              </select>
+            </div>
+            <div class="field"><label data-i18n="filter.unit">Torre / Apto</label><input id="filter-unit" placeholder="Torre 3"></div>
+            <div class="field">
               <label data-i18n="filter.date_range">Rango de fechas</label>
               <select id="filter-date-preset">
                 <option value="" data-i18n="date.all_time">Todo el tiempo</option>
@@ -169,6 +183,7 @@
             <th data-i18n="table.ticket">Ticket</th><th data-i18n="table.customer">Cliente</th><th data-i18n="table.plate">Placa</th>
             <th data-i18n="table.space">Espacio</th><th data-i18n="table.entry">Entrada</th><th data-i18n="table.exit">Salida</th>
             <th data-i18n="table.duration">Duración</th><th data-i18n="table.rate">Tarifa</th><th data-i18n="table.status">Estado</th><th data-i18n="table.amount">Monto</th>
+            <th data-i18n="table.recorded_by">Registró</th>
           </tr></thead>
           <tbody id="history-table-body"></tbody>
         </table>
@@ -219,6 +234,55 @@
         <div id="subscriptions-list"></div>
       </div>
 
+      <!-- ---------- AUDIT TRAIL (BITACORA) ---------- -->
+      <div class="view" id="view-audit">
+        <div class="section-head">
+          <div><div class="section-title" data-i18n="audit.title">Bitácora</div><div class="section-sub" data-i18n="audit.sub">Quién hizo qué y cuándo. Solo se puede consultar: nada aquí se edita ni se borra.</div></div>
+          <div class="btn-row" style="margin-top:0">
+            <button class="btn small" id="export-audit-btn" data-i18n="btn.export_csv">Exportar CSV</button>
+          </div>
+        </div>
+        <div class="panel">
+          <div class="field-row">
+            <div class="field">
+              <label data-i18n="audit.kind">Qué ver</label>
+              <select id="audit-kind">
+                <option value="actions" data-i18n="audit.kind_actions">Acciones del personal</option>
+                <option value="monthly" data-i18n="audit.kind_monthly">Entradas y salidas de mensualistas</option>
+              </select>
+            </div>
+            <div class="field"><label data-i18n="audit.search">Buscar (placa, nombre, detalle)</label><input id="audit-q"></div>
+            <div class="field" id="audit-action-field">
+              <label data-i18n="audit.action">Acción</label>
+              <select id="audit-action"><option value="" data-i18n="filter.status_any">Cualquiera</option></select>
+            </div>
+            <div class="field">
+              <label data-i18n="filter.date_range">Rango de fechas</label>
+              <select id="audit-date-preset">
+                <option value="" data-i18n="date.all_time">Todo el tiempo</option>
+                <option value="today" data-i18n="date.today">Hoy</option>
+                <option value="yesterday" data-i18n="date.yesterday">Ayer</option>
+                <option value="this_week" data-i18n="date.this_week">Esta semana</option>
+                <option value="this_month" data-i18n="date.this_month">Este mes</option>
+              </select>
+            </div>
+          </div>
+          <button class="btn primary small" id="audit-search-btn" data-i18n="btn.search">Buscar</button>
+        </div>
+        <table>
+          <thead id="audit-table-head"></thead>
+          <tbody id="audit-table-body"></tbody>
+        </table>
+        <div class="pager" id="audit-pager">
+          <button class="btn small" id="audit-prev" data-i18n="btn.prev_page">Anterior</button>
+          <span id="audit-page-info"></span>
+          <button class="btn small" id="audit-next" data-i18n="btn.next_page">Siguiente</button>
+        </div>
+        <div class="empty-state" id="audit-empty" style="display:none">
+          <div class="glyph">∅</div><span data-i18n="audit.empty">No hay registros con estos filtros.</span>
+        </div>
+      </div>
+
       <!-- ---------- USERS ---------- -->
       <div class="view" id="view-users">
         <div class="section-head">
@@ -253,7 +317,7 @@
             <button class="btn primary small" id="save-settings-btn" data-i18n="btn.save">Guardar</button>
           </div>
           <div class="panel">
-            <div class="section-title" style="font-size:13px;margin-bottom:4px" data-i18n="settings.cloud_section">Respaldo en la nube</div>
+            <div class="section-title" style="font-size:13px;margin-bottom:4px" data-i18n="settings.cloud_section">Respaldo y panel remoto (nube)</div>
             <div class="section-sub" style="margin-bottom:14px" data-i18n="settings.cloud_sub">Opcional: respalda automáticamente las sesiones completadas en una hoja de Google gratuita. Consulta CLOUD_BACKUP.md para configurarlo.</div>
             <div class="field-row">
               <div class="checkbox-field" style="flex:none"><input type="checkbox" id="cloud-enabled"> <span data-i18n="checkbox.cloud_enabled">Habilitado</span></div>
@@ -333,6 +397,22 @@
   <div class="modal">
     <div class="modal-head"><h3 data-i18n="modal.assign_space">Asignar un espacio de parqueo</h3><button class="modal-close" id="close-assign-modal">&times;</button></div>
     <div id="assign-modal-body"></div>
+  </div>
+</div>
+
+<!-- ===================== CHECK-IN MODAL ===================== -->
+<div class="modal-backdrop" id="checkin-modal">
+  <div class="modal">
+    <div class="modal-head"><h3 data-i18n="checkin.title">Registrar ingreso de un vehículo</h3><button class="modal-close" id="close-checkin-modal">&times;</button></div>
+    <div id="checkin-modal-body"></div>
+  </div>
+</div>
+
+<!-- ===================== MONTHLY MOVEMENTS MODAL ===================== -->
+<div class="modal-backdrop" id="events-modal">
+  <div class="modal">
+    <div class="modal-head"><h3 data-i18n="events.title">Entradas y salidas</h3><button class="modal-close" id="close-events-modal">&times;</button></div>
+    <div id="events-modal-body"></div>
   </div>
 </div>
 

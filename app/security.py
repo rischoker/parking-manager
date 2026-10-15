@@ -58,14 +58,17 @@ def verify_pin(pin: str, stored: str) -> bool:
     return hmac.compare_digest(check.hex(), digest_hex)
 
 
-def issue_token(user_id: int, role: str) -> str:
+def issue_token(user_id: int, role: str, username: str = "") -> str:
     token = secrets.token_urlsafe(32)
-    _active_tokens[token] = {"user_id": user_id, "role": role, "expiry": time.time() + TOKEN_TTL_SECONDS}
+    _active_tokens[token] = {
+        "user_id": user_id, "role": role, "username": username,
+        "expiry": time.time() + TOKEN_TTL_SECONDS,
+    }
     return token
 
 
 def get_session(token: str | None) -> dict | None:
-    """Returns {"user_id": int, "role": str} if the token is valid and
+    """Returns {"user_id": int, "role": str, "username": str} if the token is valid and
     unexpired, else None. This is the single source of truth both for
     "is this request authenticated at all" and "what is this user allowed
     to do" -- see require_admin / require_full_admin in
@@ -78,7 +81,7 @@ def get_session(token: str | None) -> dict | None:
     if entry["expiry"] < time.time():
         _active_tokens.pop(token, None)
         return None
-    return {"user_id": entry["user_id"], "role": entry["role"]}
+    return {"user_id": entry["user_id"], "role": entry["role"], "username": entry.get("username", "")}
 
 
 def revoke_token(token: str | None) -> None:

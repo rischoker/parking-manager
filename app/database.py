@@ -63,6 +63,22 @@ def _run_light_migrations():
             conn.exec_driver_sql("ALTER TABLE parking_sessions ADD COLUMN pricing_type VARCHAR(16)")
             conn.commit()
 
+        # v1.2: access-log columns. Existing rows become VISITOR / QR, which
+        # is exactly how they were created before these fields existed.
+        for column, ddl in (
+            ("cloud_hash", "VARCHAR(64)"),
+            ("person_type", "VARCHAR(16) NOT NULL DEFAULT 'VISITOR'"),
+            ("unit", "VARCHAR(40)"),
+            ("visiting", "VARCHAR(120)"),
+            ("vehicle_desc", "VARCHAR(80)"),
+            ("source", "VARCHAR(8) NOT NULL DEFAULT 'QR'"),
+            ("checked_in_by", "VARCHAR(40)"),
+            ("checked_out_by", "VARCHAR(40)"),
+        ):
+            if column not in existing_cols:
+                conn.exec_driver_sql(f"ALTER TABLE parking_sessions ADD COLUMN {column} {ddl}")
+                conn.commit()
+
         # Backfill: derive the type from the shape of each session's own
         # frozen configuration (the snapshot is the ground truth for what was
         # in force; the live rule may have been edited since).

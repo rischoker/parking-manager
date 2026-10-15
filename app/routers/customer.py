@@ -56,7 +56,11 @@ def register(payload: CustomerRegisterRequest, request: Request, db: DBSession =
             detail="The registration queue is full right now. Please ask the attendant for help.",
         )
     try:
-        session = crud.create_session(db, payload.name, payload.plate, payload.phone)
+        session = crud.create_session(
+            db, payload.name, payload.plate, payload.phone,
+            person_type=payload.person_type, unit=payload.unit, visiting=payload.visiting,
+            vehicle_desc=payload.vehicle, source="QR",
+        )
     except crud.BusinessError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
 

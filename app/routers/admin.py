@@ -23,6 +23,7 @@ from app.schemas import (
     RevenueSummary, RevenueDashboard, RevenueSeriesPoint,
     UserIn, UserUpdateIn, UserOut, ResetPinRequest, ChangeOwnPinRequest,
     SubscriptionIn, SubscriptionUpdateIn, SubscriptionOut, LogPaymentRequest, TogglePartedRequest,
+    CheckInRequest, AuditOut, MonthlyEventOut,
 )
 
 router = APIRouter(prefix="/api/admin", tags=["admin"])
@@ -73,9 +74,13 @@ def login(payload: LoginRequest, db: DBSession = Depends(get_db)):
     user = crud.verify_login(db, payload.username, payload.pin)
     if not user:
         record_login_failure(payload.username)
+        # The attempted username is recorded (never the PIN) so repeated
+        # guessing against an account shows up in the audit trail.
+        crud.log_audit(db, {"username": "-", "role": None}, "LOGIN_FAILED", payload.username[:40])
         raise HTTPException(status_code=401, detail="Incorrect username or PIN.")
     record_login_success(payload.username)
-    token = issue_token(user.id, user.role)
+    crud.log_audit(db, {"username": user.username, "role": user.role}, "LOGIN_OK", user.username)
+    token = issue_token(user.id, user.role, user.username)
     return LoginResponse(token=token, role=user.role, display_name=user.display_name, username=user.username)
 
 
@@ -100,6 +105,7 @@ def change_own_pin(payload: ChangeOwnPinRequest, session: dict = Depends(require
         crud.change_own_pin(db, session["user_id"], payload.current_pin, payload.new_pin)
     except crud.BusinessError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
+    crud.log_audit(db, session, "PIN_CHANGED", session.get("username"))
     return {"ok": True}
 
 
@@ -114,31 +120,39 @@ def list_users(db: DBSession = Depends(get_db)):
 
 
 @router.post("/users", response_model=UserOut, dependencies=[Depends(require_full_admin)])
-def create_user(payload: UserIn, db: DBSession = Depends(get_db)):
+def create_user(payload: UserIn, actor: dict = Depends(require_full_admin), db: DBSession = Depends(get_db)):
     try:
         user = crud.create_user(db, payload.username, payload.display_name, payload.pin, payload.role)
     except crud.BusinessError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
+    crud.log_audit(db, actor, "USER_CREATED", user.username, f"role={user.role}")
     return UserOut(id=user.id, username=user.username, display_name=user.display_name,
                    role=user.role, active=user.active)
 
 
 @router.put("/users/{user_id}", response_model=UserOut, dependencies=[Depends(require_full_admin)])
-def update_user(user_id: int, payload: UserUpdateIn, db: DBSession = Depends(get_db)):
+def update_user(user_id: int, payload: UserUpdateIn, actor: dict = Depends(require_full_admin),
+                db: DBSession = Depends(get_db)):
     try:
         user = crud.update_user(db, user_id, display_name=payload.display_name, role=payload.role, active=payload.active)
     except crud.BusinessError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
+    changes = payload.model_dump(exclude_none=True)
+    crud.log_audit(db, actor, "USER_UPDATED", user.username,
+                   ", ".join(f"{k}={v}" for k, v in changes.items()))
     return UserOut(id=user.id, username=user.username, display_name=user.display_name,
                    role=user.role, active=user.active)
 
 
 @router.put("/users/{user_id}/reset-pin", dependencies=[Depends(require_full_admin)])
-def reset_user_pin(user_id: int, payload: ResetPinRequest, db: DBSession = Depends(get_db)):
+def reset_user_pin(user_id: int, payload: ResetPinRequest, actor: dict = Depends(require_full_admin),
+                   db: DBSession = Depends(get_db)):
     try:
         crud.reset_user_pin(db, user_id, payload.new_pin)
     except crud.BusinessError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
+    target = crud.get_user(db, user_id)
+    crud.log_audit(db, actor, "USER_PIN_RESET", target.username if target else str(user_id))
     return {"ok": True}
 
 
@@ -170,6 +184,8 @@ def dashboard(db: DBSession = Depends(get_db)):
                     elapsed_minutes=round(elapsed, 1),
                     current_amount=amount,
                     pricing_rule_name=session.pricing_rule_name or "",
+                    person_type=session.person_type, unit=session.unit,
+                    visiting=session.visiting, vehicle=session.vehicle_desc,
                 )
         monthly = None
         sub = monthly_by_space.get(space.id)
@@ -191,6 +207,8 @@ def dashboard(db: DBSession = Depends(get_db)):
             phone=session.customer.phone,
             entry_timestamp=session.entry_timestamp,
             waiting_minutes=round(waiting, 1),
+            person_type=session.person_type, unit=session.unit,
+            visiting=session.visiting, vehicle=session.vehicle_desc,
         ))
 
     available = sum(1 for s in spaces_out if s.status == "AVAILABLE" and s.monthly is None)
@@ -207,28 +225,46 @@ def dashboard(db: DBSession = Depends(get_db)):
     )
 
 
-@router.post("/sessions/{session_id}/assign-space", response_model=SessionDetail, dependencies=[Depends(require_admin)])
-def assign_space(session_id: int, payload: AssignSpaceRequest, db: DBSession = Depends(get_db)):
+@router.post("/sessions/check-in", response_model=SessionDetail)
+def check_in(payload: CheckInRequest, actor: dict = Depends(require_admin), db: DBSession = Depends(get_db)):
+    """The attendant registers a vehicle at the gate (a resident's car, a
+    visitor who did not scan the QR, a delivery). Available to every
+    logged-in role; the entry time is stamped by this server and the
+    attendant's username is recorded on the session and in the audit trail."""
     try:
-        session = crud.assign_space(db, session_id, payload.space_id)
+        session = crud.create_session(
+            db, payload.name, payload.plate, payload.phone,
+            person_type=payload.person_type, unit=payload.unit, visiting=payload.visiting,
+            vehicle_desc=payload.vehicle, source="MANUAL", actor=actor, space_id=payload.space_id,
+        )
     except crud.BusinessError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
     return _to_session_detail(db, session)
 
 
-@router.post("/sessions/{session_id}/exit", response_model=SessionDetail, dependencies=[Depends(require_admin)])
-def register_exit(session_id: int, db: DBSession = Depends(get_db)):
+@router.post("/sessions/{session_id}/assign-space", response_model=SessionDetail)
+def assign_space(session_id: int, payload: AssignSpaceRequest, actor: dict = Depends(require_admin),
+                 db: DBSession = Depends(get_db)):
     try:
-        session = crud.register_exit(db, session_id)
+        session = crud.assign_space(db, session_id, payload.space_id, actor=actor)
     except crud.BusinessError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
     return _to_session_detail(db, session)
 
 
-@router.post("/sessions/{session_id}/cancel", response_model=SessionDetail, dependencies=[Depends(require_admin)])
-def cancel_session(session_id: int, db: DBSession = Depends(get_db)):
+@router.post("/sessions/{session_id}/exit", response_model=SessionDetail)
+def register_exit(session_id: int, actor: dict = Depends(require_admin), db: DBSession = Depends(get_db)):
     try:
-        session = crud.cancel_session(db, session_id)
+        session = crud.register_exit(db, session_id, actor=actor)
+    except crud.BusinessError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    return _to_session_detail(db, session)
+
+
+@router.post("/sessions/{session_id}/cancel", response_model=SessionDetail)
+def cancel_session(session_id: int, actor: dict = Depends(require_admin), db: DBSession = Depends(get_db)):
+    try:
+        session = crud.cancel_session(db, session_id, actor=actor)
     except crud.BusinessError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
     return _to_session_detail(db, session)
@@ -260,6 +296,13 @@ def _to_session_detail(db: DBSession, session) -> SessionDetail:
         final_amount=session.final_amount,
         estimated_amount=estimated,
         currency=crud.get_currency(db),
+        person_type=session.person_type,
+        unit=session.unit,
+        visiting=session.visiting,
+        vehicle=session.vehicle_desc,
+        source=session.source,
+        checked_in_by=session.checked_in_by,
+        checked_out_by=session.checked_out_by,
     )
 
 
@@ -308,12 +351,15 @@ def history_filters(
     date_preset: str | None = None,
     date_from: str | None = None,
     date_to: str | None = None,
+    person_type: str | None = None,
+    unit: str | None = None,
 ) -> dict:
     """Query parameters shared by the History table and the CSV/Excel
     exports, so an export downloads exactly what the filters on screen show."""
     d_from, d_to = _resolve_date_range(date_preset, date_from, date_to)
     return dict(plate=plate, customer=customer, space_number=space, status=status,
-                date_from=d_from, date_to=d_to)
+                date_from=d_from, date_to=d_to,
+                person_type=(person_type or None), unit=(unit or None))
 
 
 @router.get("/history", dependencies=[Depends(require_full_admin)])
@@ -372,7 +418,8 @@ def list_pricing_rules(db: DBSession = Depends(get_db)):
 
 
 @router.post("/pricing-rules", response_model=PricingRuleOut, dependencies=[Depends(require_full_admin)])
-def create_pricing_rule(payload: PricingRuleIn, db: DBSession = Depends(get_db)):
+def create_pricing_rule(payload: PricingRuleIn, actor: dict = Depends(require_full_admin),
+                        db: DBSession = Depends(get_db)):
     error = pricing_engine.validate_configuration(payload.type, payload.configuration)
     if error:
         raise HTTPException(status_code=400, detail=error)
@@ -383,6 +430,7 @@ def create_pricing_rule(payload: PricingRuleIn, db: DBSession = Depends(get_db))
         is_default=payload.is_default, active=payload.active,
     )
     db.add(rule)
+    crud.add_audit(db, actor, "PRICING_CREATED", rule.name, f"type={rule.type}")
     db.commit()
     db.refresh(rule)
     return PricingRuleOut(id=rule.id, name=rule.name, type=rule.type,
@@ -391,7 +439,8 @@ def create_pricing_rule(payload: PricingRuleIn, db: DBSession = Depends(get_db))
 
 
 @router.put("/pricing-rules/{rule_id}", response_model=PricingRuleOut, dependencies=[Depends(require_full_admin)])
-def update_pricing_rule(rule_id: int, payload: PricingRuleIn, db: DBSession = Depends(get_db)):
+def update_pricing_rule(rule_id: int, payload: PricingRuleIn, actor: dict = Depends(require_full_admin),
+                        db: DBSession = Depends(get_db)):
     rule = db.query(PricingRule).filter(PricingRule.id == rule_id).first()
     if not rule:
         raise HTTPException(status_code=404, detail="Pricing rule not found.")
@@ -406,6 +455,7 @@ def update_pricing_rule(rule_id: int, payload: PricingRuleIn, db: DBSession = De
     rule.is_default = payload.is_default
     rule.active = payload.active
     rule.updated_at = datetime.now()
+    crud.add_audit(db, actor, "PRICING_UPDATED", rule.name, f"type={rule.type}; configuration={json.dumps(payload.configuration)[:300]}")
     db.commit()
     db.refresh(rule)
     return PricingRuleOut(id=rule.id, name=rule.name, type=rule.type,
@@ -414,7 +464,7 @@ def update_pricing_rule(rule_id: int, payload: PricingRuleIn, db: DBSession = De
 
 
 @router.delete("/pricing-rules/{rule_id}", dependencies=[Depends(require_full_admin)])
-def delete_pricing_rule(rule_id: int, db: DBSession = Depends(get_db)):
+def delete_pricing_rule(rule_id: int, actor: dict = Depends(require_full_admin), db: DBSession = Depends(get_db)):
     rule = db.query(PricingRule).filter(PricingRule.id == rule_id).first()
     if not rule:
         raise HTTPException(status_code=404, detail="Pricing rule not found.")
@@ -439,6 +489,7 @@ def delete_pricing_rule(rule_id: int, db: DBSession = Depends(get_db)):
     others = db.query(PricingRule).filter(PricingRule.id != rule_id, PricingRule.active.is_(True)).count()
     if rule.active and others == 0:
         raise HTTPException(status_code=400, detail="At least one active pricing rule must remain.")
+    crud.add_audit(db, actor, "PRICING_DELETED", rule.name)
     db.delete(rule)
     db.commit()
     return {"ok": True}
@@ -460,12 +511,13 @@ def list_schedules(db: DBSession = Depends(get_db)):
 
 
 @router.post("/schedules", response_model=ScheduleOut, dependencies=[Depends(require_full_admin)])
-def create_schedule(payload: ScheduleIn, db: DBSession = Depends(get_db)):
+def create_schedule(payload: ScheduleIn, actor: dict = Depends(require_full_admin), db: DBSession = Depends(get_db)):
     rule = db.query(PricingRule).filter(PricingRule.id == payload.pricing_rule_id).first()
     if not rule:
         raise HTTPException(status_code=400, detail="Pricing rule not found.")
     schedule = Schedule(**payload.model_dump())
     db.add(schedule)
+    crud.add_audit(db, actor, "SCHEDULE_CREATED", payload.name, f"days={payload.days_of_week}; time={payload.start_time}-{payload.end_time}; rule={rule.name}")
     db.commit()
     db.refresh(schedule)
     return ScheduleOut(id=schedule.id, name=schedule.name, days_of_week=schedule.days_of_week,
@@ -475,7 +527,8 @@ def create_schedule(payload: ScheduleIn, db: DBSession = Depends(get_db)):
 
 
 @router.put("/schedules/{schedule_id}", response_model=ScheduleOut, dependencies=[Depends(require_full_admin)])
-def update_schedule(schedule_id: int, payload: ScheduleIn, db: DBSession = Depends(get_db)):
+def update_schedule(schedule_id: int, payload: ScheduleIn, actor: dict = Depends(require_full_admin),
+                    db: DBSession = Depends(get_db)):
     schedule = db.query(Schedule).filter(Schedule.id == schedule_id).first()
     if not schedule:
         raise HTTPException(status_code=404, detail="Schedule not found.")
@@ -484,6 +537,7 @@ def update_schedule(schedule_id: int, payload: ScheduleIn, db: DBSession = Depen
         raise HTTPException(status_code=400, detail="Pricing rule not found.")
     for field, value in payload.model_dump().items():
         setattr(schedule, field, value)
+    crud.add_audit(db, actor, "SCHEDULE_UPDATED", payload.name, f"days={payload.days_of_week}; time={payload.start_time}-{payload.end_time}; rule={rule.name}; active={payload.active}")
     db.commit()
     db.refresh(schedule)
     return ScheduleOut(id=schedule.id, name=schedule.name, days_of_week=schedule.days_of_week,
@@ -493,10 +547,11 @@ def update_schedule(schedule_id: int, payload: ScheduleIn, db: DBSession = Depen
 
 
 @router.delete("/schedules/{schedule_id}", dependencies=[Depends(require_full_admin)])
-def delete_schedule(schedule_id: int, db: DBSession = Depends(get_db)):
+def delete_schedule(schedule_id: int, actor: dict = Depends(require_full_admin), db: DBSession = Depends(get_db)):
     schedule = db.query(Schedule).filter(Schedule.id == schedule_id).first()
     if not schedule:
         raise HTTPException(status_code=404, detail="Schedule not found.")
+    crud.add_audit(db, actor, "SCHEDULE_DELETED", schedule.name)
     db.delete(schedule)
     db.commit()
     return {"ok": True}
@@ -526,7 +581,8 @@ def list_subscriptions(status: str | None = None, db: DBSession = Depends(get_db
 
 
 @router.post("/subscriptions", response_model=SubscriptionOut, dependencies=[Depends(require_full_admin)])
-def create_subscription(payload: SubscriptionIn, db: DBSession = Depends(get_db)):
+def create_subscription(payload: SubscriptionIn, actor: dict = Depends(require_full_admin),
+                        db: DBSession = Depends(get_db)):
     try:
         sub = crud.create_subscription(
             db, payload.customer_name, payload.plate, payload.space_id, payload.monthly_fee,
@@ -534,11 +590,14 @@ def create_subscription(payload: SubscriptionIn, db: DBSession = Depends(get_db)
         )
     except crud.BusinessError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
+    crud.log_audit(db, actor, "SUBSCRIPTION_CREATED", sub.plate,
+                   f"name={sub.customer_name}; space={sub.space.number if sub.space else '?'}; fee={sub.monthly_fee}")
     return _to_subscription_out(db, sub)
 
 
 @router.put("/subscriptions/{subscription_id}", response_model=SubscriptionOut, dependencies=[Depends(require_full_admin)])
-def update_subscription(subscription_id: int, payload: SubscriptionUpdateIn, db: DBSession = Depends(get_db)):
+def update_subscription(subscription_id: int, payload: SubscriptionUpdateIn, actor: dict = Depends(require_full_admin),
+                        db: DBSession = Depends(get_db)):
     try:
         sub = crud.update_subscription(
             db, subscription_id, customer_name=payload.customer_name, plate=payload.plate,
@@ -547,35 +606,52 @@ def update_subscription(subscription_id: int, payload: SubscriptionUpdateIn, db:
         )
     except crud.BusinessError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
+    crud.log_audit(db, actor, "SUBSCRIPTION_UPDATED", sub.plate,
+                   ", ".join(k for k in payload.model_dump(exclude_none=True)))
     return _to_subscription_out(db, sub)
 
 
 @router.post("/subscriptions/{subscription_id}/cancel", response_model=SubscriptionOut, dependencies=[Depends(require_full_admin)])
-def cancel_subscription(subscription_id: int, db: DBSession = Depends(get_db)):
+def cancel_subscription(subscription_id: int, actor: dict = Depends(require_full_admin),
+                        db: DBSession = Depends(get_db)):
     try:
         sub = crud.cancel_subscription(db, subscription_id)
     except crud.BusinessError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
+    crud.log_audit(db, actor, "SUBSCRIPTION_CANCELLED", sub.plate, f"name={sub.customer_name}")
     return _to_subscription_out(db, sub)
 
 
-@router.post("/subscriptions/{subscription_id}/log-payment", response_model=SubscriptionOut, dependencies=[Depends(require_admin)])
-def log_payment(subscription_id: int, payload: LogPaymentRequest, db: DBSession = Depends(get_db)):
+@router.post("/subscriptions/{subscription_id}/log-payment", response_model=SubscriptionOut)
+def log_payment(subscription_id: int, payload: LogPaymentRequest, actor: dict = Depends(require_admin),
+                db: DBSession = Depends(get_db)):
     try:
         crud.log_monthly_payment(db, subscription_id, payload.amount_paid, notes=payload.notes)
         sub = crud.get_subscription(db, subscription_id)
     except crud.BusinessError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
+    crud.log_audit(db, actor, "PAYMENT_LOGGED", sub.plate, f"name={sub.customer_name}; amount={payload.amount_paid}")
     return _to_subscription_out(db, sub)
 
 
-@router.post("/subscriptions/{subscription_id}/toggle-parked", response_model=SubscriptionOut, dependencies=[Depends(require_admin)])
-def toggle_parked(subscription_id: int, payload: TogglePartedRequest, db: DBSession = Depends(get_db)):
+@router.post("/subscriptions/{subscription_id}/toggle-parked", response_model=SubscriptionOut)
+def toggle_parked(subscription_id: int, payload: TogglePartedRequest, actor: dict = Depends(require_admin),
+                  db: DBSession = Depends(get_db)):
+    """Registers the subscriber's vehicle coming IN or going OUT. Every real
+    change is stored with its time and the attendant's username
+    (MonthlyAccessEvent)."""
     try:
-        sub = crud.toggle_currently_parked(db, subscription_id, payload.parked)
+        sub = crud.toggle_currently_parked(db, subscription_id, payload.parked, actor=actor)
     except crud.BusinessError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
     return _to_subscription_out(db, sub)
+
+
+@router.get("/subscriptions/{subscription_id}/events", response_model=list[MonthlyEventOut],
+            dependencies=[Depends(require_admin)])
+def subscription_events(subscription_id: int, db: DBSession = Depends(get_db)):
+    rows, _ = crud.search_monthly_events(db, subscription_id=subscription_id, limit=50)
+    return [_monthly_event_out(e) for e in rows]
 
 
 # ---------------------------------------------------------------------------
@@ -593,9 +669,12 @@ def get_settings(db: DBSession = Depends(get_db)):
 
 
 @router.put("/settings", dependencies=[Depends(require_full_admin)])
-def update_settings(payload: SettingsUpdate, db: DBSession = Depends(get_db)):
-    for key, value in payload.model_dump(exclude_none=True).items():
+def update_settings(payload: SettingsUpdate, actor: dict = Depends(require_full_admin),
+                    db: DBSession = Depends(get_db)):
+    changes = payload.model_dump(exclude_none=True)
+    for key, value in changes.items():
         crud.set_setting(db, key, str(value))
+    crud.log_audit(db, actor, "SETTINGS_UPDATED", None, ", ".join(f"{k}={v}" for k, v in changes.items()))
     return {"ok": True}
 
 
@@ -621,7 +700,7 @@ def _as_bool(value) -> bool | None:
 
 
 @router.put("/cloud-sync", dependencies=[Depends(require_full_admin)])
-def cloud_sync_update(payload: dict, db: DBSession = Depends(get_db)):
+def cloud_sync_update(payload: dict, actor: dict = Depends(require_full_admin), db: DBSession = Depends(get_db)):
     url = payload.get("url")
     if url is not None:
         url = str(url).strip()
@@ -634,6 +713,10 @@ def cloud_sync_update(payload: dict, db: DBSession = Depends(get_db)):
         url=url,
         secret=payload.get("secret"),
     )
+    # The secret itself is never written to the audit trail.
+    crud.log_audit(db, actor, "CLOUD_SYNC_UPDATED", None,
+                   f"enabled={payload.get('enabled')}; url={'set' if url else 'unchanged/empty'}; "
+                   f"secret={'changed' if payload.get('secret') else 'unchanged'}")
     return {"ok": True}
 
 
@@ -682,7 +765,7 @@ def get_remote_access(db: DBSession = Depends(get_db)):
 
 
 @router.put("/remote-access", dependencies=[Depends(require_full_admin)])
-def update_remote_access(payload: dict, db: DBSession = Depends(get_db)):
+def update_remote_access(payload: dict, actor: dict = Depends(require_full_admin), db: DBSession = Depends(get_db)):
     if "enabled" in payload:
         crud.set_setting(db, "public_access_enabled", "true" if payload["enabled"] else "false")
     if "public_base_url" in payload:
@@ -690,6 +773,7 @@ def update_remote_access(payload: dict, db: DBSession = Depends(get_db)):
         if url and not (url.startswith("https://") or url.startswith("http://")):
             raise HTTPException(status_code=400, detail="URL must start with https:// or http://")
         crud.set_setting(db, "public_base_url", url)
+    crud.log_audit(db, actor, "REMOTE_ACCESS_UPDATED", None, f"enabled={payload.get('enabled')}")
     return {"ok": True}
 
 
@@ -708,7 +792,7 @@ def get_status_page_config(db: DBSession = Depends(get_db)):
 
 
 @router.put("/status-page", dependencies=[Depends(require_full_admin)])
-def update_status_page_config(payload: dict, db: DBSession = Depends(get_db)):
+def update_status_page_config(payload: dict, actor: dict = Depends(require_full_admin), db: DBSession = Depends(get_db)):
     if "enabled" in payload:
         crud.set_setting(db, "status_page_enabled", "true" if payload["enabled"] else "false")
     if "base_url" in payload:
@@ -716,15 +800,92 @@ def update_status_page_config(payload: dict, db: DBSession = Depends(get_db)):
         if url and not (url.startswith("https://") or url.startswith("http://")):
             raise HTTPException(status_code=400, detail="URL must start with https:// or http://")
         crud.set_setting(db, "status_page_base_url", url)
+    crud.log_audit(db, actor, "STATUS_PAGE_UPDATED", None, f"enabled={payload.get('enabled')}; base_url={payload.get('base_url')}")
     return {"ok": True}
+
+
+# ---------------------------------------------------------------------------
+# Audit trail and monthly-subscriber movements (admin-only)
+# ---------------------------------------------------------------------------
+def _audit_out(a) -> dict:
+    return AuditOut(id=a.id, ts=a.ts, username=a.username, role=a.role, action=a.action,
+                    subject=a.subject, details=a.details).model_dump()
+
+
+def _monthly_event_out(e) -> dict:
+    return MonthlyEventOut(id=e.id, subscription_id=e.subscription_id, direction=e.direction, ts=e.ts,
+                           recorded_by=e.recorded_by, customer_name=e.customer_name, plate=e.plate,
+                           space_number=e.space_number).model_dump()
+
+
+def _range_filters(date_preset: str | None, date_from: str | None, date_to: str | None) -> dict:
+    d_from, d_to = _resolve_date_range(date_preset, date_from, date_to)
+    return dict(date_from=d_from, date_to=d_to)
+
+
+@router.get("/audit", dependencies=[Depends(require_full_admin)])
+def audit_trail(action: str | None = None, username: str | None = None, q: str | None = None,
+                date_preset: str | None = None, date_from: str | None = None, date_to: str | None = None,
+                limit: int = 100, offset: int = 0, db: DBSession = Depends(get_db)):
+    limit = max(1, min(limit, 1000))
+    offset = max(0, offset)
+    rows, total = crud.search_audit(db, action=action or None, username=username or None, q=q or None,
+                                    limit=limit, offset=offset,
+                                    **_range_filters(date_preset, date_from, date_to))
+    return {"total": total, "limit": limit, "offset": offset, "results": [_audit_out(a) for a in rows]}
+
+
+@router.get("/monthly-events", dependencies=[Depends(require_full_admin)])
+def monthly_events(q: str | None = None, date_preset: str | None = None, date_from: str | None = None,
+                   date_to: str | None = None, limit: int = 100, offset: int = 0,
+                   db: DBSession = Depends(get_db)):
+    limit = max(1, min(limit, 1000))
+    offset = max(0, offset)
+    rows, total = crud.search_monthly_events(db, q=q or None, limit=limit, offset=offset,
+                                             **_range_filters(date_preset, date_from, date_to))
+    return {"total": total, "limit": limit, "offset": offset, "results": [_monthly_event_out(e) for e in rows]}
+
+
+def _csv_download(columns: list[str], rows: list[dict], prefix: str) -> StreamingResponse:
+    buf = io.StringIO()
+    buf.write("\ufeff")   # BOM: Excel opens accents correctly on double-click
+    writer = csv.DictWriter(buf, fieldnames=columns)
+    writer.writeheader()
+    for row in rows:
+        writer.writerow({c: _csv_safe(row.get(c)) for c in columns})
+    filename = f"{prefix}_{datetime.now():%Y%m%d_%H%M%S}.csv"
+    return StreamingResponse(
+        iter([buf.getvalue()]), media_type="text/csv; charset=utf-8",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+@router.get("/export/audit", dependencies=[Depends(require_full_admin)])
+def export_audit(action: str | None = None, username: str | None = None, q: str | None = None,
+                 date_preset: str | None = None, date_from: str | None = None, date_to: str | None = None,
+                 db: DBSession = Depends(get_db)):
+    rows, _ = crud.search_audit(db, action=action or None, username=username or None, q=q or None,
+                                limit=100000, **_range_filters(date_preset, date_from, date_to))
+    return _csv_download(["ts", "username", "role", "action", "subject", "details"],
+                         [_audit_out(a) for a in rows], "parking_audit")
+
+
+@router.get("/export/monthly-events", dependencies=[Depends(require_full_admin)])
+def export_monthly_events(q: str | None = None, date_preset: str | None = None, date_from: str | None = None,
+                          date_to: str | None = None, db: DBSession = Depends(get_db)):
+    rows, _ = crud.search_monthly_events(db, q=q or None, limit=100000,
+                                         **_range_filters(date_preset, date_from, date_to))
+    return _csv_download(["ts", "direction", "customer_name", "plate", "space_number", "recorded_by"],
+                         [_monthly_event_out(e) for e in rows], "parking_monthly_movements")
 
 
 # ---------------------------------------------------------------------------
 # Exports (admin-only)
 # ---------------------------------------------------------------------------
 HISTORY_COLUMNS = [
-    "id", "customer_name", "plate", "phone", "space_number", "entry_timestamp",
-    "exit_timestamp", "duration_minutes", "pricing_rule_name", "status", "final_amount",
+    "id", "customer_name", "plate", "phone", "person_type", "unit", "visiting", "vehicle",
+    "space_number", "entry_timestamp", "exit_timestamp", "duration_minutes",
+    "pricing_rule_name", "status", "final_amount", "source", "checked_in_by", "checked_out_by",
 ]
 
 # Spreadsheet formula injection ("CSV injection"): the customer name and plate

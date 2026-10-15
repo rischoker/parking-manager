@@ -41,6 +41,25 @@ class SubscriptionStatus(str, enum.Enum):
     CANCELLED = "CANCELLED"
 
 
+class PersonType(str, enum.Enum):
+    """Who is entering. Matters in a residential complex: the access log has
+    to say whether a car belongs to a resident, a visitor or a service
+    provider (delivery, maintenance...)."""
+    VISITOR = "VISITOR"
+    RESIDENT = "RESIDENT"
+    SERVICE = "SERVICE"
+
+
+class SessionSource(str, enum.Enum):
+    QR = "QR"          # the customer registered themself from the QR page
+    MANUAL = "MANUAL"  # the attendant registered the vehicle at the gate
+
+
+class AccessDirection(str, enum.Enum):
+    IN = "IN"
+    OUT = "OUT"
+
+
 class ParkingSpace(Base):
     __tablename__ = "parking_spaces"
 
@@ -130,6 +149,20 @@ class ParkingSession(Base):
     # completed session has been successfully pushed to the configured
     # cloud endpoint; a background loop retries anything still False.
     synced_to_cloud = Column(Boolean, default=False)
+    # Fingerprint of the last version of this session that the cloud
+    # acknowledged. An active session is only re-sent when its data actually
+    # changed (see app/cloud_sync.py), instead of every 30 seconds.
+    cloud_hash = Column(String(64), nullable=True)
+
+    # --- Access-log details (v1.2). A residential complex needs to know WHO
+    # came in, to WHERE and with WHAT vehicle, and which guard recorded it. ---
+    person_type = Column(String(16), nullable=False, default=PersonType.VISITOR.value)
+    unit = Column(String(40), nullable=True)            # tower / apartment, free text
+    visiting = Column(String(120), nullable=True)       # resident being visited
+    vehicle_desc = Column(String(80), nullable=True)    # make / colour / type
+    source = Column(String(8), nullable=False, default=SessionSource.QR.value)
+    checked_in_by = Column(String(40), nullable=True)   # username of the guard (MANUAL only)
+    checked_out_by = Column(String(40), nullable=True)  # username who registered the exit
 
     created_at = Column(DateTime, default=datetime.now)
 
@@ -215,3 +248,41 @@ class MonthlyPayment(Base):
     notes = Column(Text, nullable=True)
 
     subscription = relationship("MonthlySubscription", back_populates="payments")
+
+
+class AuditLog(Base):
+    """Append-only record of who did what, and when. Nothing in the app edits
+    or deletes these rows. `uid` is a stable identifier so the cloud copy can
+    be written idempotently (a retry after a lost acknowledgement never
+    duplicates an entry)."""
+    __tablename__ = "audit_log"
+
+    id = Column(Integer, primary_key=True)
+    uid = Column(String(32), unique=True, nullable=False, default=_uuid)
+    ts = Column(DateTime, nullable=False, default=datetime.now, index=True)
+    username = Column(String(40), nullable=False)   # "QR" for customer self-registration
+    role = Column(String(16), nullable=True)
+    action = Column(String(40), nullable=False, index=True)
+    subject = Column(String(120), nullable=True)    # e.g. plate, username, rule name
+    details = Column(Text, nullable=True)
+    synced_to_cloud = Column(Boolean, default=False, index=True)
+
+
+class MonthlyAccessEvent(Base):
+    """A real, timestamped entry (IN) or exit (OUT) of a monthly subscriber's
+    vehicle. Before v1.2 `currently_parked` was a bare on/off switch with no
+    history; for the access log every movement now leaves a row. Name, plate
+    and space are copied onto the row so history stays correct even if the
+    subscription is later edited or cancelled."""
+    __tablename__ = "monthly_access_events"
+
+    id = Column(Integer, primary_key=True)
+    uid = Column(String(32), unique=True, nullable=False, default=_uuid)
+    subscription_id = Column(Integer, ForeignKey("monthly_subscriptions.id"), nullable=False, index=True)
+    direction = Column(String(3), nullable=False)    # IN | OUT
+    ts = Column(DateTime, nullable=False, default=datetime.now, index=True)
+    recorded_by = Column(String(40), nullable=True)
+    customer_name = Column(String(120), nullable=False)
+    plate = Column(String(20), nullable=False)
+    space_number = Column(String(8), nullable=True)
+    synced_to_cloud = Column(Boolean, default=False, index=True)

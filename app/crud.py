@@ -8,13 +8,91 @@ from app import pricing_engine, security
 from app.models import (
     Customer, ParkingSpace, ParkingSession, Setting,
     SpaceStatus, SessionStatus, User, UserRole, MonthlySubscription,
-    MonthlyPayment, SubscriptionStatus,
+    MonthlyPayment, SubscriptionStatus, AuditLog, MonthlyAccessEvent,
+    PersonType, SessionSource, AccessDirection,
 )
 
 
 class BusinessError(Exception):
     """Raised for expected, user-facing error conditions (duplicate plate,
     no available spaces, etc). Routers translate this into an HTTP 400."""
+
+
+# ---------------------------------------------------------------------------
+# Audit trail ("bitacora") -- who did what, when. Append-only.
+# ---------------------------------------------------------------------------
+QR_ACTOR = {"username": "QR", "role": None}
+
+
+def _actor_name(actor: dict | None) -> str | None:
+    return (actor or {}).get("username") or None
+
+
+def clean_text(value, max_len: int) -> str | None:
+    """Trims, collapses inner whitespace, drops control characters and caps the
+    length. Empty becomes None. Used for the free-text access-log fields."""
+    if value is None:
+        return None
+    text = "".join(ch for ch in str(value) if ch.isprintable() or ch in " \t")
+    text = " ".join(text.split())
+    return text[:max_len] or None
+
+
+def add_audit(db: DBSession, actor: dict | None, action: str,
+              subject: str | None = None, details: str | None = None) -> None:
+    """Queues one audit row on the caller's transaction (NO commit), so the
+    action and its audit entry are saved together or not at all."""
+    db.add(AuditLog(
+        username=_actor_name(actor) or "system",
+        role=(actor or {}).get("role"),
+        action=action,
+        subject=clean_text(subject, 120),
+        details=clean_text(details, 500),
+    ))
+
+
+def log_audit(db: DBSession, actor: dict | None, action: str,
+              subject: str | None = None, details: str | None = None) -> None:
+    add_audit(db, actor, action, subject, details)
+    db.commit()
+
+
+def search_audit(db: DBSession, action: str | None = None, username: str | None = None,
+                 q: str | None = None, date_from: datetime | None = None,
+                 date_to: datetime | None = None, limit: int = 100, offset: int = 0):
+    query = db.query(AuditLog)
+    if action:
+        query = query.filter(AuditLog.action == action)
+    if username:
+        query = query.filter(AuditLog.username == username)
+    if q:
+        like = f"%{q}%"
+        query = query.filter(AuditLog.subject.ilike(like) | AuditLog.details.ilike(like))
+    if date_from:
+        query = query.filter(AuditLog.ts >= date_from)
+    if date_to:
+        query = query.filter(AuditLog.ts < date_to)
+    total = query.count()
+    rows = query.order_by(AuditLog.ts.desc(), AuditLog.id.desc()).offset(offset).limit(limit).all()
+    return rows, total
+
+
+def search_monthly_events(db: DBSession, subscription_id: int | None = None, q: str | None = None,
+                          date_from: datetime | None = None, date_to: datetime | None = None,
+                          limit: int = 100, offset: int = 0):
+    query = db.query(MonthlyAccessEvent)
+    if subscription_id:
+        query = query.filter(MonthlyAccessEvent.subscription_id == subscription_id)
+    if q:
+        like = f"%{q}%"
+        query = query.filter(MonthlyAccessEvent.plate.ilike(like) | MonthlyAccessEvent.customer_name.ilike(like))
+    if date_from:
+        query = query.filter(MonthlyAccessEvent.ts >= date_from)
+    if date_to:
+        query = query.filter(MonthlyAccessEvent.ts < date_to)
+    total = query.count()
+    rows = query.order_by(MonthlyAccessEvent.ts.desc(), MonthlyAccessEvent.id.desc()).offset(offset).limit(limit).all()
+    return rows, total
 
 
 # ---------------------------------------------------------------------------
@@ -144,16 +222,57 @@ def has_active_session_for_phone(db: DBSession, phone: str) -> bool:
 # ---------------------------------------------------------------------------
 # Sessions: registration (QR flow) -> assignment -> exit
 # ---------------------------------------------------------------------------
-def create_session(db: DBSession, name: str, plate: str, phone: str | None) -> ParkingSession:
+def _check_space_assignable(db: DBSession, space_id: int) -> ParkingSpace:
+    space = get_space(db, space_id)
+    if not space:
+        raise BusinessError("Parking space not found.")
+    if space.status != SpaceStatus.AVAILABLE.value:
+        raise BusinessError(f"Space {space.number} is not available.")
+    if space.id in reserved_space_ids(db):
+        raise BusinessError(f"Space {space.number} is reserved for a monthly subscriber "
+                             "and is not available for walk-in assignment.")
+    return space
+
+
+def _describe(session: ParkingSession, name: str) -> str:
+    """Audit details are written as language-neutral key=value pairs so the
+    log reads the same whether the console is shown in Spanish or English."""
+    parts = [f"name={name}", f"type={session.person_type}"]
+    if session.unit:
+        parts.append(f"unit={session.unit}")
+    if session.visiting:
+        parts.append(f"visiting={session.visiting}")
+    if session.vehicle_desc:
+        parts.append(f"vehicle={session.vehicle_desc}")
+    return "; ".join(parts)
+
+
+def create_session(db: DBSession, name: str, plate: str, phone: str | None, *,
+                   person_type: str = PersonType.VISITOR.value, unit: str | None = None,
+                   visiting: str | None = None, vehicle_desc: str | None = None,
+                   source: str = SessionSource.QR.value, actor: dict | None = None,
+                   space_id: int | None = None) -> ParkingSession:
+    """Registers an entry. Two ways in: a customer scanning the QR (source QR,
+    waits for the attendant to assign a space) or the attendant registering
+    the vehicle at the gate (source MANUAL, optionally with the space right
+    away). Both leave an audit row."""
+    if person_type not in {p.value for p in PersonType}:
+        raise BusinessError("Person type must be VISITOR, RESIDENT or SERVICE.")
+    if source not in {x.value for x in SessionSource}:
+        raise BusinessError("Invalid source.")
     if has_active_session_for_plate(db, plate):
         raise BusinessError(
             f"Plate {plate} already has an active parking session. "
             "If this is a mistake, ask the attendant to check the dashboard."
         )
-    if phone and has_active_session_for_phone(db, phone):
+    # A phone can only hold one self-registered session at a time (stops one
+    # person flooding the queue), but a guard may legitimately register two
+    # cars that share a contact number.
+    if source == SessionSource.QR.value and phone and has_active_session_for_phone(db, phone):
         raise BusinessError(
             "This phone number already has an active parking session registered."
         )
+    space = _check_space_assignable(db, space_id) if space_id else None
 
     customer = get_or_create_customer(db, name, plate, phone)
 
@@ -172,38 +291,49 @@ def create_session(db: DBSession, name: str, plate: str, phone: str | None) -> P
         pricing_type=rule.type,
         pricing_config_snapshot=rule.configuration,
         status=SessionStatus.PENDING_ASSIGNMENT.value,
+        person_type=person_type,
+        unit=clean_text(unit, 40),
+        visiting=clean_text(visiting, 120),
+        vehicle_desc=clean_text(vehicle_desc, 80),
+        source=source,
+        checked_in_by=_actor_name(actor) if source == SessionSource.MANUAL.value else None,
     )
     db.add(session)
+    if space:
+        space.status = SpaceStatus.OCCUPIED.value
+        session.space = space
+        session.status = SessionStatus.OCCUPIED.value
+    detail = _describe(session, name)
+    if space:
+        detail += f"; space={space.number}"
+    if source == SessionSource.MANUAL.value:
+        add_audit(db, actor, "SESSION_CHECKIN", plate, detail)
+    else:
+        add_audit(db, QR_ACTOR, "SESSION_REGISTERED", plate, detail)
     db.commit()
     db.refresh(session)
     return session
 
 
-def assign_space(db: DBSession, session_id: int, space_id: int) -> ParkingSession:
+def assign_space(db: DBSession, session_id: int, space_id: int, actor: dict | None = None) -> ParkingSession:
     session = db.query(ParkingSession).filter(ParkingSession.id == session_id).first()
     if not session:
         raise BusinessError("Session not found.")
     if session.status != SessionStatus.PENDING_ASSIGNMENT.value:
         raise BusinessError(f"Session is not awaiting assignment (status: {session.status}).")
 
-    space = get_space(db, space_id)
-    if not space:
-        raise BusinessError("Parking space not found.")
-    if space.status != SpaceStatus.AVAILABLE.value:
-        raise BusinessError(f"Space {space.number} is not available.")
-    if space.id in reserved_space_ids(db):
-        raise BusinessError(f"Space {space.number} is reserved for a monthly subscriber "
-                             "and is not available for walk-in assignment.")
+    space = _check_space_assignable(db, space_id)
 
     space.status = SpaceStatus.OCCUPIED.value
     session.space_id = space.id
     session.status = SessionStatus.OCCUPIED.value
+    add_audit(db, actor, "SPACE_ASSIGNED", session.customer.plate, f"space={space.number}")
     db.commit()
     db.refresh(session)
     return session
 
 
-def register_exit(db: DBSession, session_id: int) -> ParkingSession:
+def register_exit(db: DBSession, session_id: int, actor: dict | None = None) -> ParkingSession:
     session = db.query(ParkingSession).filter(ParkingSession.id == session_id).first()
     if not session:
         raise BusinessError("Session not found.")
@@ -220,18 +350,23 @@ def register_exit(db: DBSession, session_id: int) -> ParkingSession:
     session.duration_minutes = minutes
     session.final_amount = amount
     session.status = SessionStatus.COMPLETED.value
+    session.checked_out_by = _actor_name(actor)
 
+    space_number = None
     if session.space_id:
         space = get_space(db, session.space_id)
         if space:
             space.status = SpaceStatus.AVAILABLE.value
+            space_number = space.number
 
+    add_audit(db, actor, "SESSION_EXIT", session.customer.plate,
+              f"space={space_number}; minutes={round(minutes)}; amount={amount}")
     db.commit()
     db.refresh(session)
     return session
 
 
-def cancel_session(db: DBSession, session_id: int) -> ParkingSession:
+def cancel_session(db: DBSession, session_id: int, actor: dict | None = None) -> ParkingSession:
     session = db.query(ParkingSession).filter(ParkingSession.id == session_id).first()
     if not session:
         raise BusinessError("Session not found.")
@@ -245,6 +380,8 @@ def cancel_session(db: DBSession, session_id: int) -> ParkingSession:
 
     session.status = SessionStatus.CANCELLED.value
     session.exit_timestamp = datetime.now()
+    session.checked_out_by = _actor_name(actor)
+    add_audit(db, actor, "SESSION_CANCELLED", session.customer.plate, f"type={session.person_type}")
     db.commit()
     db.refresh(session)
     return session
@@ -312,8 +449,14 @@ def search_history(
     date_to: datetime | None = None,
     limit: int = 200,
     offset: int = 0,
+    person_type: str | None = None,
+    unit: str | None = None,
 ):
     q = db.query(ParkingSession).join(Customer)
+    if person_type:
+        q = q.filter(ParkingSession.person_type == person_type)
+    if unit:
+        q = q.filter(ParkingSession.unit.ilike(f"%{unit}%"))
     if plate:
         q = q.filter(Customer.plate.ilike(f"%{plate.upper()}%"))
     if customer:
@@ -621,12 +764,28 @@ def log_monthly_payment(db: DBSession, subscription_id: int, amount_paid: float,
     return payment
 
 
-def toggle_currently_parked(db: DBSession, subscription_id: int, parked: bool) -> MonthlySubscription:
+def toggle_currently_parked(db: DBSession, subscription_id: int, parked: bool,
+                            actor: dict | None = None) -> MonthlySubscription:
+    """Marks a monthly subscriber's vehicle as inside / outside. Every real
+    change leaves a timestamped IN/OUT row (MonthlyAccessEvent); repeating the
+    state it already has is a no-op, so a double click can't invent a
+    movement."""
     sub = get_subscription(db, subscription_id)
     if not sub:
         raise BusinessError("Subscription not found.")
-    sub.currently_parked = parked
-    db.commit()
+    if parked and sub.status != SubscriptionStatus.ACTIVE.value:
+        raise BusinessError("Cannot register an entry for a cancelled subscription.")
+    if bool(sub.currently_parked) != parked:
+        sub.currently_parked = parked
+        db.add(MonthlyAccessEvent(
+            subscription_id=sub.id,
+            direction=AccessDirection.IN.value if parked else AccessDirection.OUT.value,
+            recorded_by=_actor_name(actor),
+            customer_name=sub.customer_name,
+            plate=sub.plate,
+            space_number=sub.space.number if sub.space else None,
+        ))
+        db.commit()
     db.refresh(sub)
     return sub
 
